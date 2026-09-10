@@ -8,11 +8,45 @@ import {
   useRef,
   type ReactNode,
 } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { initialState } from "./initialState";
-import type { AppState, RolePerson } from "./types";
+import type { AppState, RolePerson, Screen } from "./types";
 import { ROLES } from "../data/roles";
 import { COMPS, EVIDENCE, R1_SCORES } from "../data/comps";
 import { LANG, ZH_TEXT_MAP, STATUS_MAP_EN_ZH } from "../data/i18n";
+
+// ---------------------------------------------------------------------------
+// Routing: screen <-> URL path mapping
+// ---------------------------------------------------------------------------
+const PROJECT_SCREENS: Screen[] = [
+  "overview",
+  "rubric",
+  "plan",
+  "schedule",
+  "brief",
+  "live",
+  "review",
+  "debrief",
+  "decision",
+  "package",
+];
+
+export function screenToPath(screen: Screen): string {
+  if (screen === "home") return "/";
+  if (screen === "files") return "/files";
+  return "/project/" + screen;
+}
+
+export function pathToScreen(pathname: string): Screen {
+  const path = pathname.replace(/\/+$/, "") || "/";
+  if (path === "/") return "home";
+  if (path === "/files") return "files";
+  const seg = path.split("/").filter(Boolean);
+  if (seg[0] === "project" && seg[1] && PROJECT_SCREENS.includes(seg[1] as Screen)) {
+    return seg[1] as Screen;
+  }
+  return "home";
+}
 
 type Action =
   | { type: "SET"; payload: Partial<AppState> }
@@ -204,6 +238,46 @@ export function useStore() {
   const ctx = useContext(StoreCtx);
   if (!ctx) throw new Error("useStore must be used within StoreProvider");
   return ctx;
+}
+
+// ---------------------------------------------------------------------------
+// RouteSync: keeps the URL in sync with `state.screen` (and vice versa).
+// Must be mounted inside <BrowserRouter>. It enables browser back/forward,
+// refresh persistence, and shareable deep links without changing any of the
+// existing `go(...)` / `set({ screen: ... })` call sites.
+// ---------------------------------------------------------------------------
+export function RouteSync({ children }: { children?: ReactNode }) {
+  const { state, set } = useStore();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Track the previous screen so we only push a URL when the screen actually
+  // *changed* (not on initial mount), and so deep-link/refresh doesn't get
+  // immediately overwritten by the initial "home" state.
+  const prevScreen = useRef<Screen>(state.screen);
+
+  // 1) state.screen -> URL (only when screen actually changed)
+  useEffect(() => {
+    if (prevScreen.current === state.screen) return;
+    prevScreen.current = state.screen;
+    const target = screenToPath(state.screen);
+    if (location.pathname !== target) {
+      navigate(target, { replace: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.screen]);
+
+  // 2) URL -> state.screen (browser back/forward, deep link, refresh)
+  useEffect(() => {
+    const screenFromUrl = pathToScreen(location.pathname);
+    if (screenFromUrl !== state.screen) {
+      prevScreen.current = screenFromUrl;
+      set({ screen: screenFromUrl });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  return <>{children}</>;
 }
 
 // Helpers

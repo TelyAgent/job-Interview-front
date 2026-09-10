@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { ConfigProvider, App as AntApp } from "antd";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
-import { StoreProvider } from "./store/StoreContext";
+import { StoreProvider, RouteSync } from "./store/StoreContext";
 import "./index.css";
 
 class ErrorBoundary extends Component<
@@ -58,9 +58,11 @@ root.render(
       <AntApp>
         <StoreProvider>
           <BrowserRouter>
-            <ErrorBoundary>
-              <App />
-            </ErrorBoundary>
+            <RouteSync>
+              <ErrorBoundary>
+                <App />
+              </ErrorBoundary>
+            </RouteSync>
           </BrowserRouter>
         </StoreProvider>
       </AntApp>

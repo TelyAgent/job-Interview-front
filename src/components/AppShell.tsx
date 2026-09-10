@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useStore } from "../store/StoreContext";
 import {
   CloseSvg,
@@ -11,7 +11,7 @@ import {
 import { AppearancePopover } from "./AppearancePopover";
 
 export function TopBar() {
-  const { state, t, go, role, toggleLang, toggleAppearance } = useStore();
+  const { state, t, go, role, set, toggleLang, toggleAppearance } = useStore();
   const langLabel = state.lang === "en" ? "中 / EN" : "EN / 中";
 
   return (
@@ -121,9 +121,7 @@ export function TopBar() {
         {state.showAppearance && <AppearancePopover />}
       </div>
       <button
-        onClick={() =>
-          useStore().set({ showCreateModal: true, createTab: "manual" })
-        }
+        onClick={() => set({ showCreateModal: true, createTab: "manual" })}
         style={{
           height: 32,
           padding: "0 12px",
@@ -438,6 +436,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     ["--ai" as any]: aiColor,
     ["--ai-soft" as any]: aiSoftColor,
   };
+
+  // Mirror CSS variables onto <html> so that antd Modal (which uses a Portal
+  // and renders outside the .hireos-root subtree) still inherits the theme
+  // tokens (--brand, --surface, --ink, etc.).
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    for (const [k, v] of Object.entries(cssVars)) {
+      if (typeof v === "string") root.style.setProperty(k, v);
+    }
+    return () => {
+      // Clean up only the variables we set, so a later re-mount doesn't pile up.
+      for (const k of Object.keys(cssVars)) root.style.removeProperty(k);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    accentHex,
+    brandSoft,
+    brandStrong,
+    aiColor,
+    aiSoftColor,
+    dark,
+    deep,
+  ]);
 
   const isHome = state.screen === "home";
   const isFiles = state.screen === "files";

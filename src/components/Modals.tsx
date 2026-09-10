@@ -1,57 +1,19 @@
 import { useStore } from "../store/StoreContext";
 import { CloseSvg, ArrowRightSvg, FileSvg, MailSvg, FolderSvg } from "./ui/Icons";
 import { Modal } from "antd";
+import { useCreateProject } from "../features/project-intake/useCreateProject";
+import { errorText, intakeText } from "../features/project-intake/i18n";
+import type { MaterialKind } from "../features/project-intake/api";
 
 export function CreateProjectModal() {
   const { state, set, say, t } = useStore();
+  const form = useCreateProject();
+  const it = intakeText(state.lang);
   const open = state.showCreateModal;
 
-  const close_ = () => set({ showCreateModal: false });
+  const close_ = () => { if (!form.submitting) set({ showCreateModal: false }); };
 
-  const create = () => {
-    if (!state.jdText.trim()) {
-      say(
-        state.lang === "zh"
-          ? "创建项目之前必须提供职位描述。"
-          : "A job description is required before a project can be created.",
-      );
-      return;
-    }
-    set({
-      showCreateModal: false,
-      screen: "overview",
-      jdOnlyDraft: true,
-      draftCreated: true,
-      rubricExtracted: false,
-      rubricConfirmed: false,
-      rubricVersion: 1,
-      rubricEditing: false,
-      planApproved: false,
-      planEditing: false,
-      candidateLinked: false,
-      r1Done: false,
-      r2Done: false,
-      r1Scheduled: false,
-      r2Scheduled: false,
-      inviteFailed: false,
-      decision: null,
-      decHr: false,
-      decHm: false,
-      decRecorded: false,
-      offerState: "none",
-      followUpRounds: [],
-      transcriptState: "ok",
-      liveNotes: "",
-      notesSavedAt: state.lang === "zh" ? "刚刚已保存" : "Saved just now",
-      aiSuggestionState: "idle",
-      r2Scores: { poir: 3, sca: null, cm: 3 },
-    });
-    say(
-      state.lang === "zh"
-        ? "已仅使用 JD 创建草稿项目。尚未关联候选人，也尚未提取要求；请从「总览」开始。"
-        : "Draft project created from the JD alone. No candidate is linked and no requirements have been extracted yet — that starts on Overview.",
-    );
-  };
+  const create = form.create;
 
   if (!open) return null;
 
@@ -170,8 +132,10 @@ export function CreateProjectModal() {
             {t.required}
           </div>
           <textarea
-            value={state.jdText}
-            onChange={(e) => set({ jdText: e.target.value })}
+            aria-label={t.jobDescription}
+            value={form.jdText}
+            disabled={form.submitting}
+            onChange={(e) => form.updateText(e.target.value)}
             placeholder={t.jdPlaceholder}
             style={{
               marginTop: 8,
@@ -208,34 +172,29 @@ export function CreateProjectModal() {
             <input
               id="jdFileInput"
               type="file"
+              disabled={form.submitting || form.jdUploading}
               accept=".pdf,.docx,.txt"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (!f) return;
-                set({ jdFileName: f.name });
-                if (/\.(txt|md)$/i.test(f.name)) {
-                  const reader = new FileReader();
-                  reader.onload = (ev) =>
-                    set({ jdText: String(ev.target?.result || "") });
-                  reader.readAsText(f);
-                } else {
-                  say(
-                    `"${f.name}" attached. This prototype reads plain text files directly; PDF/DOCX text extraction is simulated — the JD field keeps its current text.`,
-                  );
-                }
+                void form.chooseJd(f);
+                e.target.value = "";
               }}
               style={{ display: "none" }}
             />
             <FileSvg />
             <div>
               <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--brand)" }}>
-                {state.jdFileName || t.chooseJdFile}
+                {form.jdUploading ? it.uploading : form.jdFile?.name || t.chooseJdFile}
               </div>
               <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
                 {t.chooseJdFileSub}
               </div>
             </div>
           </label>
+          {form.jdFile && <div style={{ marginTop: 8, fontSize: 12, color: form.jdFile.errorCode ? 'var(--bad)' : 'var(--ink-3)' }}>
+            {form.jdFile.errorCode ? errorText(form.jdFile.errorCode, state.lang) : it.source}
+          </div>}
 
           <div
             style={{
@@ -270,17 +229,13 @@ export function CreateProjectModal() {
                 id="materialsFileInput"
                 type="file"
                 multiple
+                accept=".pdf,.docx,.txt"
+                disabled={form.submitting}
                 onChange={(e) => {
                   const files = Array.from(e.target.files || []);
                   if (!files.length) return;
-                  set({
-                    attachedMaterials: state.attachedMaterials.concat(
-                      files.map((f, i) => ({
-                        name: f.name,
-                        key: Date.now() + "-" + i,
-                      })),
-                    ),
-                  });
+                  form.addFiles(files);
+                  e.target.value = "";
                 }}
                 style={{ display: "none" }}
               />
@@ -299,7 +254,7 @@ export function CreateProjectModal() {
             </label>
           </div>
 
-          {state.attachedMaterials.length > 0 && (
+          {form.attachments.length > 0 && (
             <div
               style={{
                 marginTop: 9,
@@ -308,7 +263,7 @@ export function CreateProjectModal() {
                 gap: 6,
               }}
             >
-              {state.attachedMaterials.map((m) => (
+              {form.attachments.map((m) => (
                 <div
                   key={m.key}
                   style={{
@@ -331,14 +286,19 @@ export function CreateProjectModal() {
                     }}
                   >
                     {m.name}
+                    <small style={{ display: 'block', whiteSpace: 'normal' }}>
+                      {m.uploading ? it.uploading : m.error || m.material?.errorCode ? errorText(m.error || m.material!.errorCode!, state.lang) : it.available}
+                    </small>
                   </span>
+                  <select aria-label={t.candidateMaterials} value={m.kind} disabled={form.submitting} onChange={(e) => form.setAttachments((rows) => rows.map((r) => r.key === m.key ? { ...r, kind: e.target.value as MaterialKind } : r))}>
+                    {(['resume', 'screening', 'assessment', 'other'] as const).map((kind) => <option key={kind} value={kind}>{it[kind]}</option>)}
+                  </select>
+                  {m.error && <button onClick={() => void form.uploadAttachment(m)}>{it.retry}</button>}
                   <button
+                    aria-label={it.remove}
+                    disabled={form.submitting}
                     onClick={() =>
-                      set({
-                        attachedMaterials: state.attachedMaterials.filter(
-                          (x) => x.key !== m.key,
-                        ),
-                      })
+                      form.setAttachments((rows) => rows.filter((x) => x.key !== m.key))
                     }
                     style={{
                       border: 0,
@@ -374,13 +334,13 @@ export function CreateProjectModal() {
         >
           {state.createTab === "folder" ? <FolderSvg size={30} /> : <MailSvg size={30} />}
           <div style={{ marginTop: 6, fontSize: 15, fontWeight: 700 }}>
-            {state.createTab === "folder" ? t.selectFolder : t.reviewMatched}
+            {it.notConnected}
           </div>
           <div style={{ fontSize: 12, color: "var(--ink-3)" }}>
-            {state.createTab === "folder" ? t.driveDemo : t.emailDemo}
+            {it.connectLater}
           </div>
           <button
-            onClick={() => say(t.openDemoPreview + " (simulated)")}
+            onClick={() => set({ createTab: 'manual' })}
             style={{
               marginTop: 8,
               height: 34,
@@ -393,11 +353,12 @@ export function CreateProjectModal() {
               cursor: "pointer",
             }}
           >
-            {t.openDemoPreview}
+            {t.uploadManually}
           </button>
         </div>
       )}
 
+      {form.error && <div role="alert" style={{ marginTop: 12, color: 'var(--bad)' }}>{form.error}</div>}
       <div
         style={{
           marginTop: 22,
@@ -424,6 +385,7 @@ export function CreateProjectModal() {
         </button>
         <button
           onClick={create}
+          disabled={form.busy || state.createTab !== 'manual'}
           style={{
             height: 40,
             padding: "0 18px",
@@ -439,7 +401,7 @@ export function CreateProjectModal() {
             gap: 8,
           }}
         >
-          {t.createProject}
+          {form.submitting ? it.submitting : t.createProject}
           <ArrowRightSvg />
         </button>
       </div>

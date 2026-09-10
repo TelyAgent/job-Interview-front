@@ -1,4 +1,7 @@
 import { useStore } from "../store/StoreContext";
+import { useEffect, useState } from 'react';
+import { api, type ProjectSummary, type ApiError } from '../features/project-intake/api';
+import { errorText, intakeText } from '../features/project-intake/i18n';
 import { Pill } from "../utils/status";
 import { SurfaceCard, Banner, Chip } from "../components/ui/Primitives";
 import {
@@ -16,47 +19,56 @@ import {
 
 export function HomePage() {
   const { state, t, set, go, role, say } = useStore();
+  const it = intakeText(state.lang);
+  const [savedProjects, setSavedProjects] = useState<ProjectSummary[]>([]);
+  const [loadError, setLoadError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [reload, setReload] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    api<ProjectSummary[]>('/projects').then((rows) => { if (active) { setSavedProjects(rows); setLoadError(''); } }).catch((e: ApiError) => { if (active) setLoadError(e.code); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [reload]);
+  const projects = savedProjects.map((p) => ({
+    role: p.title, sub: p.candidateName || it.notLinked, candidate: p.candidateName || it.notLinked,
+    status: 'Draft', tone: 'unknown' as const, needs: false, wired: true,
+    initials: p.title.slice(0, 2).toUpperCase(), progress: it.notPlanned,
+    created: new Date(p.createdAt).toLocaleDateString(state.lang === 'zh' ? 'zh-CN' : 'en-US'),
+    open: () => go('overview'),
+  }));
   const counts = {
-    "All projects": homeProjects(state, role.key, set, say).length,
-    "Needs my confirmation": homeProjects(state, role.key, set, say).filter((p) => p.needs).length,
-    Draft: homeProjects(state, role.key, set, say).filter((p) =>
+    "All projects": projects.length,
+    "Needs my confirmation": projects.filter((p) => p.needs).length,
+    Draft: projects.filter((p) =>
       ["Draft", "Requirements ready", "Planning"].includes(p.status as string),
     ).length,
-    Published: homeProjects(state, role.key, set, say).filter((p) => p.status === "Package published")
+    Published: projects.filter((p) => p.status === "Package published")
       .length,
   };
 
   const myWorkCards = [
     {
       label: t.cardMyRemaining,
-      value: role.key === "iv" ? 1 : 2,
+      value: 0,
       sub: t.cardMyRemainingSub,
       icon: <HomeSvg />,
     },
     {
       label: t.cardAwaitingSchedule,
-      value: role.key === "iv" ? 0 : 1,
+      value: 0,
       sub: t.cardAwaitingScheduleSub,
       icon: <CalendarSvg />,
     },
     {
       label: t.cardScorecards,
-      value: role.key === "iv" ? 1 : 2,
+      value: 0,
       sub: t.cardScorecardsSub,
       icon: <NoteSvg />,
     },
     {
       label: t.cardDecisions,
-      value:
-        role.key === "hr"
-          ? state.decHr
-            ? 0
-            : 1
-          : role.key === "hm"
-            ? state.decHm
-              ? 0
-              : 1
-            : 0,
+      value: 0,
       sub: role.key === "iv" ? t.cardDecisionsSubNA : t.cardDecisionsSub,
       icon: <CheckCircleSvg />,
     },
@@ -64,24 +76,24 @@ export function HomePage() {
 
   const overviewCards = [
     { label: t.cardTotalProjects, value: counts["All projects"], sub: t.cardTotalProjectsSub, icon: <GridSvg /> },
-    { label: t.cardRolesRecruiting, value: 4, sub: t.cardRolesRecruitingSub, icon: <BriefcaseSvg /> },
-    { label: t.cardRolesInInterview, value: 2, sub: t.cardRolesInInterviewSub, icon: <TrendSvg /> },
+    { label: t.cardRolesRecruiting, value: 0, sub: t.cardRolesRecruitingSub, icon: <BriefcaseSvg /> },
+    { label: t.cardRolesInInterview, value: 0, sub: t.cardRolesInInterviewSub, icon: <TrendSvg /> },
   ];
 
   const moreCards = [
     { label: t.cardTodayInterviews, value: 0, sub: t.cardTodayInterviewsSub, icon: <CalendarSvg /> },
     { label: t.cardNext7, value: 0, sub: t.cardNext7Sub, icon: <CalendarSvg /> },
-    { label: t.cardActiveProjects, value: 3, sub: t.cardActiveProjectsSub, icon: <BoltIcon /> },
-    { label: t.cardAwaitingJoint, value: 1, sub: t.cardAwaitingJointSub, icon: <CheckCircleSvg /> },
+    { label: t.cardActiveProjects, value: 0, sub: t.cardActiveProjectsSub, icon: <BoltIcon /> },
+    { label: t.cardAwaitingJoint, value: 0, sub: t.cardAwaitingJointSub, icon: <CheckCircleSvg /> },
     { label: t.cardAwaitingScheduling, value: 0, sub: t.cardAwaitingSchedulingSub, icon: <CalendarSvg /> },
-    { label: t.cardUnknownRoles, value: 1, sub: t.cardUnknownRolesSub, icon: <HelpIcon /> },
-    { label: t.cardInterviewsCompleted, value: 4, sub: t.cardLast30, icon: <ChartSvg /> },
-    { label: t.cardPackagesCompleted, value: state.decRecorded ? 1 : 0, sub: t.cardLast30, icon: <BoxIcon /> },
-    { label: t.cardProjectsOnHold, value: 1, sub: t.cardOnHoldStatus, icon: <PauseSvg /> },
+    { label: t.cardUnknownRoles, value: savedProjects.length, sub: t.cardUnknownRolesSub, icon: <HelpIcon /> },
+    { label: t.cardInterviewsCompleted, value: 0, sub: t.cardLast30, icon: <ChartSvg /> },
+    { label: t.cardPackagesCompleted, value: 0, sub: t.cardLast30, icon: <BoxIcon /> },
+    { label: t.cardProjectsOnHold, value: 0, sub: t.cardOnHoldStatus, icon: <PauseSvg /> },
   ];
 
   const filters = ["All projects", "Needs my confirmation", "Draft", "Published"] as const;
-  const activity = buildActivity(state);
+  const activity = savedProjects.map((p) => ({ text: p.title, meta: new Date(p.createdAt).toLocaleString(state.lang === 'zh' ? 'zh-CN' : 'en-US') }));
 
   const statsGrid = {
     marginTop: 11,
@@ -348,7 +360,7 @@ export function HomePage() {
           return (
             <Chip
               key={f}
-              label={`${f} (${counts[f]})`}
+              label={`${state.lang === 'zh' ? ({ 'All projects': '全部项目', 'Needs my confirmation': '待我确认', Draft: '草稿', Published: '已发布' })[f] : f} (${counts[f]})`}
               active={active}
               onClick={() => set({ homeFilter: f })}
             />
@@ -388,7 +400,10 @@ export function HomePage() {
             <div>{t.colProgress}</div>
             <div>{t.colCreated}</div>
           </div>
-          {homeProjects(state, role.key, set, say)
+          {loading && <div role="status" style={{ padding: 18 }}>{it.loading}</div>}
+          {loadError && <div role="alert" style={{ padding: 18 }}>{errorText(loadError, state.lang)} <button onClick={() => setReload((n) => n + 1)}>{it.retry}</button></div>}
+          {!loading && !loadError && !projects.length && <div style={{ padding: 18 }}>{it.empty}</div>}
+          {projects
             .filter((p) => {
               const q = state.searchQuery.trim().toLowerCase();
               const matchesSearch =
@@ -455,7 +470,7 @@ export function HomePage() {
                   </div>
                 </div>
                 <div>
-                  <Pill label={p.status} tone={p.tone} />
+                  <Pill label={state.lang === 'zh' ? it.draft : p.status} tone={p.tone} />
                 </div>
                 <div style={{ fontSize: 13, color: "var(--ink)" }}>{p.candidate}</div>
                 <div style={{ fontSize: 13, color: "var(--ink-2)" }}>{p.progress}</div>
@@ -511,7 +526,7 @@ export function HomePage() {
 }
 
 function homeProjects(state: any, roleKey: string, set: (p: any) => void, say: (m: string) => void) {
-  const projects = [
+  const projects: { id: string; initials: string; role: string; sub: string; status: string; tone: string; candidate: string; progress: string; created: string; needs?: boolean; wired: boolean; open: () => void }[] = [
     {
       id: "p1",
       initials: "SB",

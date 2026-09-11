@@ -132,7 +132,10 @@ interface StoreValue {
 const StoreCtx = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, initialState, (initial) => ({
+    ...initial,
+    screen: pathToScreen(window.location.pathname),
+  }));
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Persist prefs to localStorage

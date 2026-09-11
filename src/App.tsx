@@ -6,21 +6,17 @@ import { ScoreTraceDrawer } from "./components/Drawers";
 import { useStore } from "./store/StoreContext";
 import { HomePage } from "./pages/Home";
 import { FilesPage } from "./pages/Files";
-import {
-  ProjectOverviewPage,
-  RubricPage,
-  PlanPage,
-  SchedulePage,
-  BriefPage,
-  ProjectShell,
-} from "./pages/ProjectA";
-import {
-  LivePage,
-  ReviewPage,
-  DebriefPage,
-  DecisionPage,
-  PackagePage,
-} from "./pages/ProjectB";
+import { ProjectShell } from "./pages/project/ProjectShell";
+import { ProjectOverviewPage } from "./pages/project/ProjectOverviewPage";
+import { RubricPage } from "./pages/project/RubricPage";
+import { PlanPage } from "./pages/project/PlanPage";
+import { SchedulePage } from "./pages/project/SchedulePage";
+import { BriefPage } from "./pages/project/BriefPage";
+import { LivePage } from "./pages/project/LivePage";
+import { ReviewPage } from "./pages/project/ReviewPage";
+import { DebriefPage } from "./pages/project/DebriefPage";
+import { DecisionPage } from "./pages/project/DecisionPage";
+import { PackagePage } from "./pages/project/PackagePage";
 
 export default function App() {
   const { state } = useStore();

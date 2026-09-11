@@ -1,0 +1,13 @@
+.meeting-record .record-tabs { display: flex; border-bottom: 1px solid var(--line); }
+.meeting-record .record-tabs button { flex: 1; min-height: 38px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--ink-2); font-size: 12px; font-weight: 600; cursor: pointer; }
+.meeting-record .record-tabs button[aria-selected="true"] { border-bottom-color: var(--brand); color: var(--brand); }
+.meeting-record .record-selector { display: grid; grid-template-columns: minmax(0, 1fr) 65px; gap: 8px; margin-bottom: 12px; }
+.meeting-record label { display: block; min-width: 0; font-size: 12px; }
+.meeting-record select,.meeting-record input,.meeting-record textarea { box-sizing: border-box; width: 100%; border: 1px solid var(--line-strong); border-radius: 6px; padding: 8px; color: var(--ink); background: var(--surface); font: inherit; }
+.meeting-record textarea { min-height: 160px; resize: vertical; font-size: 12.5px; line-height: 1.55; }
+.meeting-record .record-selector > button { grid-column: 1 / -1; }
+.meeting-record .live-side-content button { border: 1px solid var(--line-strong); border-radius: 6px; padding: 6px 10px; color: var(--brand); background: var(--surface); cursor: pointer; font-size: 12px; }
+.meeting-record button:disabled { opacity: .5; cursor: not-allowed; }
+.meeting-record .record-context,.meeting-record p,.meeting-record .record-status { font-size: 11.5px; line-height: 1.6; color: var(--ink-2); overflow-wrap: anywhere; margin: 8px 0; }
+.meeting-record .record-error { color: var(--bad); font-size: 12px; overflow-wrap: anywhere; }
+.meeting-record .record-conflict { margin-top: 12px; display: grid; gap: 8px; }

@@ -40,7 +40,7 @@ export type Task = {
   matchScore: number | null; matchRecommendation: string | null; createdAt: string;
   job: { id: string; title: string; department: string | null; location: string | null; level: string | null; jdText: string; jdVersion: number };
   candidate: CandidateRef & { phone: string | null };
-  resume: { material: Material } | null;
+  resume: { material: Material; parseJobs: { status: string; result: ParseResult | null }[] } | null;
   materials: { kind: string; material: Material }[];
   parseJobs: ParseJob[];
   rounds: Round[];
@@ -70,6 +70,22 @@ export type RubricState = {
   jobId: string; jdVersion: number;
   generation: { id: string; status: 'queued' | 'parsing' | 'needs_review' | 'failed'; errorCode: string | null } | null;
   rubric: RubricVersion | null;
+};
+
+// GET/POST /jobs/:id/brief-questions — one STAR (Situation/Task/Action/Result) follow-up
+// set per confirmed capability card, generated once per rubric version. No candidate
+// resume matching exists yet, so every card in the job's latest confirmed rubric shows up
+// here regardless of round — see the implementation plan's Phase D/E split.
+export type InterviewQuestion = {
+  id: string; cardId: string;
+  situationPrompt: string; taskPrompt: string; actionPrompt: string; resultPrompt: string;
+  mandatory: boolean; createdAt: string;
+  card: { id: string; requirement: string; responsibilityType: ResponsibilityType; cardPriority: CardPriority; competencyTags: string; expectedEvidence: string };
+};
+export type BriefState = {
+  jobId: string; rubricVersionId: string | null; versionNumber: number | null;
+  generation: { id: string; status: 'queued' | 'parsing' | 'needs_review' | 'failed'; errorCode: string | null } | null;
+  questions: InterviewQuestion[];
 };
 
 export class ApiError extends Error { constructor(public code: string) { super(code); } }

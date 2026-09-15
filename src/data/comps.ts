@@ -127,6 +127,97 @@ export const R1_SCORES: Record<string, number> = {
   tc: 4,
 };
 
+// STAR (Situation/Task/Action/Result) follow-up questions for the Interview Brief's
+// business capability lane, one set per competency. The Brief only ever shows the first
+// three stages (S/T/A) to keep each card compact — Result stays available for the live
+// interview follow-up but isn't printed on the prep card.
+export const BRIEF_STAR: Record<string, { en: [string, string][]; zh: [string, string][] }> = {
+  dsd: {
+    en: [
+      ["SITUATION", "What system or service were you responsible for, and what made the situation difficult?"],
+      ["TASK", "What outcome or reliability goal did you personally need to achieve?"],
+      ["ACTION", "What design did you choose, and how did you weigh consistency, availability, and latency?"],
+      ["RESULT", "What changed after launch, and what production evidence shows the design worked?"],
+    ],
+    zh: [
+      ["背景", "你当时负责什么系统或服务？问题为什么复杂？"],
+      ["任务", "你个人需要达成什么结果或可靠性目标？"],
+      ["行动", "你选择了什么设计？如何权衡一致性、可用性和延迟？"],
+      ["结果", "上线后带来了什么变化？有哪些生产数据证明设计有效？"],
+    ],
+  },
+  bed: {
+    en: [
+      ["SITUATION", "What production issue or performance constraint were you facing?"],
+      ["TASK", "What did you need to diagnose, improve, or deliver?"],
+      ["ACTION", "Which tools and technical steps did you use to find and fix the root cause?"],
+      ["RESULT", "What measurable impact did the fix have, and how did you prevent regression?"],
+    ],
+    zh: [
+      ["背景", "你当时遇到什么生产问题或性能瓶颈？"],
+      ["任务", "你需要诊断、改进或交付什么？"],
+      ["行动", "你使用了哪些工具和技术步骤定位并修复根因？"],
+      ["结果", "修复带来了什么可量化影响？你如何防止问题复发？"],
+    ],
+  },
+  tc: {
+    en: [
+      ["SITUATION", "Who was the audience, and what made the technical topic hard to explain?"],
+      ["TASK", "What decision or shared understanding did you need the audience to reach?"],
+      ["ACTION", "How did you adapt the explanation and check whether people understood?"],
+      ["RESULT", "What decision was made, and what happened because the communication worked?"],
+    ],
+    zh: [
+      ["背景", "当时的听众是谁？这个技术主题为什么难以解释？"],
+      ["任务", "你希望听众达成什么决策或共识？"],
+      ["行动", "你如何调整解释方式，并确认对方真正理解？"],
+      ["结果", "最终做出了什么决策？沟通有效带来了什么结果？"],
+    ],
+  },
+  poir: {
+    en: [
+      ["SITUATION", "What incident happened, and what was the customer or system impact?"],
+      ["TASK", "What were you accountable for during the response?"],
+      ["ACTION", "What did you do to mitigate the incident and coordinate the response?"],
+      ["RESULT", "What changed afterward, and which follow-up actions were closed?"],
+    ],
+    zh: [
+      ["背景", "当时发生了什么事故？对客户或系统造成了什么影响？"],
+      ["任务", "在事故响应中，你具体负责什么？"],
+      ["行动", "你采取了哪些缓解措施？如何协调响应过程？"],
+      ["结果", "事后系统或流程发生了什么变化？哪些后续行动已经关闭？"],
+    ],
+  },
+  sca: {
+    en: [
+      ["SITUATION", "What data, access, or compliance-sensitive situation were you handling?"],
+      ["TASK", "What security or privacy decision did you personally need to make?"],
+      ["ACTION", "What access-control or data-handling steps did you take, and why?"],
+      ["RESULT", "How did you verify the decision reduced exposure or met the requirement?"],
+    ],
+    zh: [
+      ["背景", "你当时处理的是什么数据、权限或合规敏感场景？"],
+      ["任务", "你个人需要做出什么安全或隐私决策？"],
+      ["行动", "你采取了哪些权限控制或数据处理措施？为什么？"],
+      ["结果", "你如何验证这个决策降低了暴露风险或满足了要求？"],
+    ],
+  },
+  cm: {
+    en: [
+      ["SITUATION", "What collaboration or mentoring challenge was the teammate or partner facing?"],
+      ["TASK", "What did you need to help the team or person accomplish?"],
+      ["ACTION", "How did you adapt your approach when the first explanation or plan did not work?"],
+      ["RESULT", "What improved for the teammate or team, and how do you know?"],
+    ],
+    zh: [
+      ["背景", "当时同事或合作方遇到了什么协作或辅导难题？"],
+      ["任务", "你需要帮助团队或这个人完成什么？"],
+      ["行动", "当第一次解释或方案没有奏效时，你如何调整方法？"],
+      ["结果", "同事或团队最终有哪些改善？你如何确认改善发生了？"],
+    ],
+  },
+};
+
 export const EVIDENCE: Record<string, import("../store/types").EvidenceItem[]> =
   {
     dsd: [

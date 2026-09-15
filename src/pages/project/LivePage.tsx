@@ -11,6 +11,11 @@ export function LivePage() {
   const root = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
   const [dirty, setDirty] = useState(false);
+  // Captured once on arrival (e.g. from Schedule's "Join link") and cleared right away —
+  // a normal visit to Live Interview via the nav tabs has none, and re-visiting later
+  // must not keep re-triggering an auto-join from a stale value.
+  const [joinRound] = useState(state.liveJoinRound);
+  useEffect(() => { if (state.liveJoinRound) set({ liveJoinRound: null }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!active && !dirty) return;
@@ -40,7 +45,7 @@ export function LivePage() {
     </div>
     <div className="live-shell">
       <div className="live-main">
-        <ZoomHostPanel lang={state.lang} onActive={setActive} />
+        <ZoomHostPanel lang={state.lang} onActive={setActive} round={joinRound} autoJoin={!!joinRound} />
         <LiveQuestionPanel />
       </div>
       <MeetingRecordPanel lang={state.lang} dirty={dirty} onDirty={setDirty} />

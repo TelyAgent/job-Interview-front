@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { ZoomMeetingPanel } from './ZoomMeetingPanel';
 
 type Connection = { connected: boolean; name: string | null; pending: boolean; error: string | null; meeting?: { joinUrl: string } | null };
-export function ZoomHostPanel({ lang, onActive }: { lang: 'zh' | 'en'; onActive: (active: boolean) => void }) {
+type Round = { roundId: string; topic: string };
+export function ZoomHostPanel({ lang, onActive, round = null, autoJoin = false }: { lang: 'zh' | 'en'; onActive: (active: boolean) => void; round?: Round | null; autoJoin?: boolean }) {
   const zh = lang === 'zh';
   const [connection, setConnection] = useState<Connection | null>(null);
   const [error, setError] = useState('');
@@ -46,13 +47,15 @@ export function ZoomHostPanel({ lang, onActive }: { lang: 'zh' | 'en'; onActive:
         if (!window.confirm(zh ? '请先在 Zoom 确认旧会议已结束。此操作只清除当前会议关联，不会结束旧会议。继续？' : 'First verify the old meeting has ended in Zoom. This only clears its local link; it does not end the meeting. Continue?')) return;
         setBusy(true);
         try {
-          const response = await fetch('/api/meetings/host/reset-meeting', { method: 'POST', headers: { 'x-hireos-zoom': '1' } });
+          const response = await fetch('/api/meetings/host/reset-meeting', { method: 'POST', headers: { 'x-hireos-zoom': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ roundId: round?.roundId }) });
           if (!response.ok) throw new Error('ZOOM_RESET_FAILED');
           setInvite(''); setCopied(false); setError(''); setReload(value => value + 1);
         } catch { setError('ZOOM_RESET_FAILED'); } finally { setBusy(false); }
       }}>{zh ? '准备新会议' : 'Prepare new meeting'}</button>}
     </div>
     {error && <div role="alert" style={{ fontSize: 12, color: 'var(--bad)', paddingBottom: 10 }}>{error}{error === 'ZOOM_PUBLIC_CLIENT_ID_REQUIRED' && (zh ? '：请配置后端 Public Client ID' : ': configure the backend Public Client ID')}</div>}
-    {connection?.connected ? <ZoomMeetingPanel lang={lang} onActive={activity} host onInvitation={setInvite} /> : <div className="zoom-panel zoom-stage zoom-placeholder"><strong>Zoom</strong><p>{zh ? '连接账户后，可在此创建会议并以主持人身份进入。' : 'Connect your account to create and host a meeting here.'}</p></div>}
+    {connection?.connected
+      ? <ZoomMeetingPanel lang={lang} onActive={activity} host onInvitation={setInvite} roundId={round?.roundId} topic={round?.topic} autoJoin={autoJoin} />
+      : <div className="zoom-panel zoom-stage zoom-placeholder"><strong>Zoom</strong><p>{zh ? '连接账户后，可在此创建会议并以主持人身份进入。' : 'Connect your account to create and host a meeting here.'}</p></div>}
   </div>;
 }

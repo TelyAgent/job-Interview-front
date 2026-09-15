@@ -5,7 +5,7 @@ import './zoom-meeting.css';
 type Status = 'idle' | 'loading' | 'joining' | 'joined' | 'reconnecting' | 'left' | 'error';
 type JoinConfig = { meetingNumber: string; password: string; displayName: string; signature: string; expiresAt: number; zak?: string; joinUrl?: string };
 
-export function ZoomMeetingPanel({ lang, onActive, host = false, onInvitation }: { lang: 'zh' | 'en'; onActive: (active: boolean) => void; host?: boolean; onInvitation?: (url: string) => void }) {
+export function ZoomMeetingPanel({ lang, onActive, host = false, onInvitation, roundId, topic, autoJoin = false }: { lang: 'zh' | 'en'; onActive: (active: boolean) => void; host?: boolean; onInvitation?: (url: string) => void; roundId?: string; topic?: string; autoJoin?: boolean }) {
   const t = liveCopy[lang];
   const frame = useRef<HTMLIFrameElement>(null);
   const request = useRef<AbortController | null>(null);
@@ -77,7 +77,10 @@ export function ZoomMeetingPanel({ lang, onActive, host = false, onInvitation }:
     setError(''); setDiagnostic(''); setStatus('loading'); setElapsed(0);
     const timeout = setTimeout(() => controller.abort(), host ? 75000 : 15000);
     try {
-      const response = await fetch(host ? '/api/meetings/host/start' : '/api/meetings/dev/join-config', { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', 'x-hireos-zoom': '1' } });
+      const response = await fetch(
+        host ? '/api/meetings/host/start' : '/api/meetings/dev/join-config',
+        { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', 'x-hireos-zoom': '1' }, body: host ? JSON.stringify({ roundId, topic }) : undefined },
+      );
       const body = await response.json();
       if (!response.ok) throw new Error(body.code || 'failed');
       if (controller.signal.aborted) return;
@@ -92,6 +95,21 @@ export function ZoomMeetingPanel({ lang, onActive, host = false, onInvitation }:
       setStatus('error');
     } finally { clearTimeout(timeout); if (request.current === controller) request.current = null; }
   };
+  // Fires once when arriving with an explicit round to join (Schedule's "Join link").
+  // Doesn't need a user gesture — unlike connecting Zoom itself, this is a plain fetch
+  // plus an iframe mount, not a window.open the browser could block. Deferred a tick so
+  // it lands after React 18 StrictMode's dev-only mount→cleanup→mount cycle settles —
+  // firing synchronously on mount, the cycle's own (unrelated) unmount cleanup aborts
+  // this request before it ever completes.
+  const autoJoinedRef = useRef(false);
+  useEffect(() => {
+    if (!autoJoin || autoJoinedRef.current) return;
+    const timer = setTimeout(() => {
+      if (!autoJoinedRef.current) { autoJoinedRef.current = true; void join(); }
+    }, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoJoin]);
 
   return <div className="zoom-panel">
     <div className="zoom-status" role="status">

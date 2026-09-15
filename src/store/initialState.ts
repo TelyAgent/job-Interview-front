@@ -16,6 +16,7 @@ export const initialState: AppState = {
 
   screen: "home",
   currentTaskId: null,
+  liveJoinRound: null,
 
   moreOpen: false,
   overviewStatsOpen: true,

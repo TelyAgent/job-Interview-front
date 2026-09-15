@@ -55,7 +55,7 @@ export function HomePage() {
   );
   const tasks: InterviewTask[] = savedTasks.map((t) => ({
     id: t.id, jobId: t.jobId, candidateId: t.candidate.id,
-    status: t.status as TaskStatus, roundsCompleted: 0, roundsPlanned: 0,
+    status: t.status as TaskStatus, roundsCompleted: t.rounds.filter((r) => r.status === "completed").length, roundsPlanned: t.rounds.length,
     screening: { matchScore: t.matchScore ?? 0, recommendation: t.matchRecommendation ?? "match", handedOffAt: t.createdAt } as InterviewTask["screening"],
     createdAt: t.createdAt,
   }));

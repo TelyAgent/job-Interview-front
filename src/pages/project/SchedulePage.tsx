@@ -12,6 +12,11 @@ const meetingLabel = (format: string, zh: boolean) => {
   return "Google Meet (simulated)";
 };
 
+// A Zoom link can be joined right inside Live Interview (see meetings/zoom-host.service.ts
+// — the round's meeting already exists there under its own id); anything else (a pasted
+// Google Meet link, etc.) has no in-app join path, so it just opens externally as before.
+const isZoomLink = (url: string) => { try { return new URL(url).hostname.endsWith("zoom.us"); } catch { return false; } };
+
 // The datetime-local input is parsed in the browser's own local time zone to produce the
 // stored instant; the separate `timezone` field is only a display label typed by the
 // scheduler (matches the "simulated, clearly labeled" scheduling scope — no real calendar
@@ -44,14 +49,67 @@ export function SchedulePage() {
   const [openRoundId, setOpenRoundId] = useState<string | null>(null);
   const [draftAt, setDraftAt] = useState("");
   const [draftTz, setDraftTz] = useState("UTC+8");
+  const [draftLink, setDraftLink] = useState("");
   const [saving, setSaving] = useState(false);
 
   const openSchedule = (r: Round) => {
     setOpenRoundId(r.id);
     setDraftAt(r.scheduledAt ? toDatetimeLocal(r.scheduledAt) : "");
     setDraftTz(r.timezone || "UTC+8");
+    setDraftLink(r.meetingLink || "");
   };
   const closeDrawer = () => setOpenRoundId(null);
+
+  // Real Zoom integration (see meetings/zoom-host.service.ts) — connects the scheduler's
+  // own Zoom account once via OAuth, then generates one independent, reusable meeting per
+  // round (keyed by this round's id). Same connect-via-popup pattern as the Live Interview
+  // host panel; clicking again for the same round just returns its existing link.
+  const [zoomPhase, setZoomPhase] = useState<"idle" | "connecting" | "generating">("idle");
+  const generateZoomLink = async () => {
+    if (zoomPhase !== "idle") return;
+    const round = rounds.find((r) => r.id === openRoundId);
+    if (!round) return;
+    try {
+      const statusRes = await fetch("/api/meetings/host/status");
+      const status = await statusRes.json().catch(() => ({}));
+      if (!statusRes.ok) throw new Error(status.code || "ZOOM_STATUS_FAILED");
+      if (!status.connected) {
+        const popup = window.open("about:blank", "_blank");
+        if (!popup) throw new Error("POPUP_BLOCKED");
+        popup.opener = null;
+        setZoomPhase("connecting");
+        const authRes = await fetch("/api/meetings/host/authorize", { method: "POST", headers: { "x-hireos-zoom": "1" } });
+        const authBody = await authRes.json().catch(() => ({}));
+        if (!authRes.ok) { popup.close(); throw new Error(authBody.code || "ZOOM_AUTH_FAILED"); }
+        const url = new URL(authBody.authorizationUrl);
+        if (url.origin !== "https://zoom.us") { popup.close(); throw new Error("ZOOM_AUTH_FAILED"); }
+        popup.location.href = url.href;
+        let connected = false;
+        for (let i = 0; i < 60 && !connected; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+          const poll = await fetch("/api/meetings/host/status");
+          const body = await poll.json().catch(() => ({}));
+          if (body.connected) connected = true;
+          else if (body.error) throw new Error(body.error);
+        }
+        if (!connected) throw new Error("ZOOM_AUTH_EXPIRED");
+      }
+      setZoomPhase("generating");
+      const linkRes = await fetch("/api/meetings/host/link", {
+        method: "POST", headers: { "x-hireos-zoom": "1", "Content-Type": "application/json" },
+        body: JSON.stringify({ roundId: round.id, topic: `HireOS Interview — ${round.name}` }),
+      });
+      const linkBody = await linkRes.json().catch(() => ({}));
+      if (!linkRes.ok) throw new Error(linkBody.code || "ZOOM_CREATE_FAILED");
+      setDraftLink(linkBody.joinUrl);
+      say(zh ? "已生成该轮次专属的真实 Zoom 会议链接。" : "Generated a real Zoom meeting link for this round.");
+    } catch (e) {
+      const code = e instanceof Error ? e.message : "ZOOM_CREATE_FAILED";
+      say(errorText(code, state.lang));
+    } finally {
+      setZoomPhase("idle");
+    }
+  };
 
   const saveSchedule = async () => {
     const round = rounds.find((r) => r.id === openRoundId);
@@ -59,7 +117,7 @@ export function SchedulePage() {
     setSaving(true);
     try {
       await api(`/rounds/${round.id}/schedule`, { method: "POST", body: JSON.stringify({
-        version: round.version, scheduledAt: new Date(draftAt).toISOString(), timezone: draftTz.trim() || "UTC",
+        version: round.version, scheduledAt: new Date(draftAt).toISOString(), timezone: draftTz.trim() || "UTC", meetingLink: draftLink.trim(),
       }) });
       say(zh ? `${round.name} 已排期。邀请与日历占用为模拟操作，已明确标注。` : `${round.name} scheduled. Invitation and calendar hold are simulated and clearly labeled.`);
       closeDrawer();
@@ -147,9 +205,27 @@ export function SchedulePage() {
                   <div className="text-[12.5px]">{ownerName}</div>
                 </div>
                 <div>
-                  <div className="inline-flex h-[22px] items-center rounded-md bg-[var(--surface-3)] px-2 text-[11.5px] text-[var(--ink-2)]">
-                    📹 {meetingLabel(r.format, zh)}
-                  </div>
+                  {r.meetingLink && isZoomLink(r.meetingLink) ? (
+                    <button
+                      onClick={() => set({ liveJoinRound: { roundId: r.id, topic: `HireOS Interview — ${r.name}` }, screen: "live" })}
+                      className="inline-flex h-[22px] cursor-pointer items-center rounded-md border-0 bg-[var(--brand-soft)] px-2 text-[11.5px] text-[var(--brand)] underline"
+                    >
+                      📹 {t.joinMeetingLabel}
+                    </button>
+                  ) : r.meetingLink ? (
+                    <a
+                      href={r.meetingLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-[22px] items-center rounded-md bg-[var(--brand-soft)] px-2 text-[11.5px] text-[var(--brand)] underline"
+                    >
+                      📹 {t.joinMeetingLabel}
+                    </a>
+                  ) : (
+                    <div className="inline-flex h-[22px] items-center rounded-md bg-[var(--surface-3)] px-2 text-[11.5px] text-[var(--ink-2)]">
+                      📹 {meetingLabel(r.format, zh)}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Pill label={statusLabel} tone={r.status === "completed" ? "ok" : isScheduled ? "warn" : "unknown"} />
@@ -286,6 +362,26 @@ export function SchedulePage() {
               className="h-10 w-full rounded-[9px] border border-[var(--line-strong)] bg-[var(--surface)] px-[11px] text-[13px] text-[var(--ink)]"
             />
             <div className="mt-[5px] text-[11px] text-[var(--ink-3)]">{t.scheduleTimezoneHint}</div>
+          </label>
+          <label className="block">
+            <div className="mb-1.5 text-[11.5px] font-semibold text-[var(--ink-2)]">{t.scheduleMeetingLinkLabel}</div>
+            <div className="flex gap-2">
+              <input
+                value={draftLink}
+                onChange={(e) => setDraftLink(e.target.value)}
+                placeholder={t.scheduleMeetingLinkPlaceholder}
+                className="h-10 flex-1 rounded-[9px] border border-[var(--line-strong)] bg-[var(--surface)] px-[11px] text-[13px] text-[var(--ink)]"
+              />
+              <button
+                type="button"
+                disabled={zoomPhase !== "idle"}
+                onClick={generateZoomLink}
+                className="h-10 flex-none cursor-pointer whitespace-nowrap rounded-[9px] border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-[12.5px] font-semibold text-[var(--ink-2)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {zoomPhase === "connecting" ? t.zoomConnecting : zoomPhase === "generating" ? t.zoomGenerating : t.zoomGenerateCta}
+              </button>
+            </div>
+            <div className="mt-[5px] text-[11px] text-[var(--ink-3)]">{t.scheduleMeetingLinkHint}</div>
           </label>
         </div>
       </Drawer>

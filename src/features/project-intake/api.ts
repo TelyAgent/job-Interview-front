@@ -16,7 +16,7 @@ export type Round = {
   id: string; sequence: number; name: string; format: string; duration: number;
   competencies: string; questions: number; mandatory: number; notes: string;
   status: 'Planned' | 'completed'; version: number; createdAt: string;
-  scheduledAt: string | null; timezone: string | null;
+  scheduledAt: string | null; timezone: string | null; meetingLink: string | null;
   interviewer: { id: string; name: string; title: string | null } | null;
 };
 
@@ -34,6 +34,7 @@ export type TaskSummary = {
   id: string; jobId: string; status: string; reviewed: boolean; version: number;
   matchScore: number | null; matchRecommendation: string | null; createdAt: string;
   job: { title: string }; candidate: CandidateRef;
+  rounds: { status: 'Planned' | 'completed' }[];
 };
 export type Task = {
   id: string; status: string; reviewed: boolean; version: number;

@@ -58,6 +58,10 @@ export interface AppState {
   // The real InterviewTask id backing the current project-flow pages (Overview, Plan, ...).
   // Null on "home"/"files"; set whenever a real task is opened from Home.
   currentTaskId: string | null;
+  // Set by Schedule's "Join link" for a Zoom-generated round link, just before navigating
+  // to Live Interview — tells it which round's real Zoom meeting to auto-join on arrival.
+  // LivePage consumes and clears this on mount; it is not meant to be read afterward.
+  liveJoinRound: { roundId: string; topic: string } | null;
 
   // preferences
   moreOpen: boolean;

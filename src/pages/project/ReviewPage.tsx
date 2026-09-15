@@ -1,15 +1,33 @@
 import { useStore } from "../../store/StoreContext";
-import { Pill, compName } from "../../utils/status";
+import { Pill, compName, toneBg, toneFg, type Tone } from "../../utils/status";
 import { COMPS } from "../../data/comps";
+
+const REC_OPTIONS: { value: string; label: (t: ReturnType<typeof useStore>["t"]) => string; tone: Tone }[] = [
+  { value: "strong_advance", label: (t) => t.recStrongAdvance, tone: "ok" },
+  { value: "advance", label: (t) => t.recAdvance, tone: "ok" },
+  { value: "hold", label: (t) => t.recHold, tone: "warn" },
+  { value: "do_not_advance", label: (t) => t.recDoNotAdvance, tone: "bad" },
+  { value: "request_info", label: (t) => t.recRequestInfo, tone: "warn" },
+];
 
 export function ReviewPage() {
   const { state, set, t, r1Scores, evidence } = useStore();
 
+  const hasOverride = (id: string) =>
+    Object.prototype.hasOwnProperty.call(state.humanScoreOverrides, id);
+  const setOverride = (id: string, value: number | null) =>
+    set({ humanScoreOverrides: { ...state.humanScoreOverrides, [id]: value } });
+  const setNote = (id: string, value: string) =>
+    set({ humanNotes: { ...state.humanNotes, [id]: value } });
+
+  const activeRecommendation = state.roundRecommendations[state.roundView] ?? null;
+
   const reviewRows = COMPS.filter((c) => c.round === state.roundView).map((c) => {
-    const human = c.round === "r1" ? r1Scores[c.id] ?? null : state.r2Scores[c.id] ?? null;
+    const fallback = c.round === "r1" ? r1Scores[c.id] ?? null : state.r2Scores[c.id] ?? null;
+    const human = hasOverride(c.id) ? state.humanScoreOverrides[c.id] : fallback;
     const mismatch = c.ai != null && human != null && Math.abs(c.ai - human) >= 2;
     const ev = evidence[c.id] || [];
-    const tone = human == null ? "unknown" : c.must && human < c.req ? "bad" : "ok";
+    const tone: Tone = human == null ? "unknown" : c.must && human < c.req ? "bad" : "ok";
     const rationale =
       c.id === "bed"
         ? `Raising from AI draft’s ${c.ai} to ${human}: the goroutine-leak debugging story shows real production depth that outweighs one soft answer on connection-pool sizing. Discussed with the panel — agreed.`
@@ -20,6 +38,7 @@ export function ReviewPage() {
             : ev.length
               ? ev[0].text
               : "Agree with AI draft.";
+    const noteValue = state.humanNotes[c.id] !== undefined ? state.humanNotes[c.id] : rationale;
 
     return {
       c,
@@ -27,6 +46,7 @@ export function ReviewPage() {
       mismatch,
       tone,
       rationale,
+      noteValue,
     };
   });
 
@@ -117,6 +137,60 @@ export function ReviewPage() {
         </div>
       </div>
 
+      <div
+        style={{
+          padding: "15px 17px",
+          border: "1px solid var(--line)",
+          borderRadius: 14,
+          background: "var(--surface)",
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "'IBM Plex Mono', monospace",
+            fontSize: 10.5,
+            letterSpacing: ".05em",
+            color: "var(--ink-3)",
+          }}
+        >
+          {t.roundRecommendationLabel}
+        </div>
+        <div style={{ marginTop: 5, fontSize: 11.5, color: "var(--ink-3)", lineHeight: 1.5 }}>
+          {t.roundRecommendationHint}
+        </div>
+        <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {REC_OPTIONS.map((opt) => {
+            const active = activeRecommendation === opt.value;
+            return (
+              <button
+                key={opt.value}
+                onClick={() =>
+                  set({
+                    roundRecommendations: {
+                      ...state.roundRecommendations,
+                      [state.roundView]: opt.value,
+                    },
+                  })
+                }
+                style={{
+                  height: 32,
+                  padding: "0 13px",
+                  border: `1px solid ${active ? toneFg[opt.tone] : "var(--line)"}`,
+                  borderRadius: 9,
+                  background: active ? toneBg[opt.tone] : "var(--surface)",
+                  color: active ? toneFg[opt.tone] : "var(--ink-2)",
+                  fontSize: 12.5,
+                  fontWeight: active ? 700 : 500,
+                  cursor: "pointer",
+                }}
+              >
+                {opt.label(t)}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {reviewRows.map((r, i) => (
         <div
           key={i}
@@ -151,7 +225,7 @@ export function ReviewPage() {
             )}
             <Pill
               label={r.tone === "unknown" ? "Unknown" : r.tone === "bad" ? "Below bar" : "Meets bar"}
-              tone={r.tone as any}
+              tone={r.tone}
             />
             <div style={{ fontSize: 10.5, color: "var(--ink-3)" }}>
               {r.tone === "unknown" ? "insufficient evidence" : "high confidence"}
@@ -185,18 +259,8 @@ export function ReviewPage() {
                   width: 40,
                   height: 40,
                   borderRadius: 10,
-                  background:
-                    r.tone === "ok"
-                      ? "var(--ok-soft)"
-                      : r.tone === "bad"
-                        ? "var(--bad-soft)"
-                        : "var(--surface-3)",
-                  color:
-                    r.tone === "ok"
-                      ? "var(--ok)"
-                      : r.tone === "bad"
-                        ? "var(--bad)"
-                        : "var(--ink-2)",
+                  background: toneBg[r.tone],
+                  color: toneFg[r.tone],
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -214,29 +278,91 @@ export function ReviewPage() {
               style={{
                 flex: 1,
                 paddingTop: 4,
-                fontSize: 12.5,
-                color: "var(--ink-2)",
-                lineHeight: 1.55,
               }}
             >
-              {r.rationale}
-              <div>
+              <div
+                style={{
+                  fontFamily: "'IBM Plex Mono', monospace",
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  letterSpacing: ".04em",
+                  color: "var(--ink-3)",
+                }}
+              >
+                {t.scoreEntryLabel}
+              </div>
+              <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                {[1, 2, 3, 4, 5].map((lvl) => {
+                  const active = r.human === lvl;
+                  return (
+                    <button
+                      key={lvl}
+                      onClick={() => setOverride(r.c.id, lvl)}
+                      style={{
+                        width: 27,
+                        height: 27,
+                        borderRadius: 7,
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        border: `1px solid ${active ? "var(--brand)" : "var(--line)"}`,
+                        background: active ? "var(--brand)" : "var(--surface)",
+                        color: active ? "var(--brand-ink)" : "var(--ink-2)",
+                      }}
+                    >
+                      {lvl}
+                    </button>
+                  );
+                })}
                 <button
-                  onClick={() => set({ drawer: r.c.id + ":score" })}
+                  onClick={() => setOverride(r.c.id, null)}
                   style={{
-                    marginTop: 7,
-                    border: 0,
+                    height: 27,
+                    padding: "0 9px",
+                    border: "1px solid var(--line)",
+                    borderRadius: 7,
                     background: "transparent",
-                    padding: 0,
-                    color: "var(--brand)",
-                    fontSize: 11.5,
-                    textDecoration: "underline",
+                    color: "var(--ink-3)",
+                    fontSize: 11,
                     cursor: "pointer",
                   }}
                 >
-                  {t.viewScoreTrace}
+                  {t.markUnknownLabel}
                 </button>
               </div>
+              <textarea
+                value={r.noteValue}
+                onChange={(e) => setNote(r.c.id, e.target.value)}
+                placeholder={t.scoreNotePlaceholder}
+                style={{
+                  marginTop: 9,
+                  width: "100%",
+                  height: 64,
+                  border: "1px solid var(--line-strong)",
+                  borderRadius: 9,
+                  padding: "8px 10px",
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  color: "var(--ink)",
+                  background: "var(--surface)",
+                  resize: "vertical",
+                }}
+              />
+              <button
+                onClick={() => set({ drawer: r.c.id + ":score" })}
+                style={{
+                  marginTop: 7,
+                  border: 0,
+                  background: "transparent",
+                  padding: 0,
+                  color: "var(--brand)",
+                  fontSize: 11.5,
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                }}
+              >
+                {t.viewScoreTrace}
+              </button>
             </div>
           </div>
         </div>

@@ -112,8 +112,8 @@ export function PlanPage() {
 
   const footNote = state.followUpRounds.length
     ? (zh ? "补充面试轮次已从评审环节创建，用于补齐安全与合规能力的证据缺口——请先完成排期和面试，再回到决定页。" : "A follow-up round was added from the debrief to close the Security & Compliance evidence gap — schedule and complete it before returning to the decision.")
-    : state.r1Done && state.r2Done
-      ? (zh ? "两轮面试均已完成；该已确认计划现为只读记录。" : "Both rounds are complete; this confirmed plan is now a read-only record.")
+    : rounds.length > 0 && rounds.every((r) => r.status === "completed")
+      ? (zh ? "全部轮次均已完成；该已确认计划现为只读记录。" : "All rounds are complete; this confirmed plan is now a read-only record.")
       : state.planApproved
         ? (zh ? "面试计划已确定。候选人和面试官就绪后，为每一轮安排排期。" : "Plan confirmed. Schedule each planned round when the candidate and interviewers are ready.")
         : (zh ? "请检查负责人、能力覆盖和必问问题，然后确定面试计划再进行排期。" : "Review owners, coverage and mandatory questions, then confirm this plan before scheduling.");

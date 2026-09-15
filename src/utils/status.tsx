@@ -2,16 +2,16 @@ import { useStore } from "../store/StoreContext";
 import { COMPS as COMPS_LIST } from "../data/comps";
 import type { Competency } from "../data/comps";
 
-type Tone = "ok" | "warn" | "bad" | "unknown";
+export type Tone = "ok" | "warn" | "bad" | "unknown";
 
-const toneBg: Record<Tone, string> = {
+export const toneBg: Record<Tone, string> = {
   ok: "var(--ok-soft)",
   warn: "var(--warn-soft)",
   bad: "var(--bad-soft)",
   unknown: "var(--surface-3)",
 };
 
-const toneFg: Record<Tone, string> = {
+export const toneFg: Record<Tone, string> = {
   ok: "var(--ok)",
   warn: "var(--warn)",
   bad: "var(--bad)",

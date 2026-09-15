@@ -64,6 +64,9 @@ export const initialState: AppState = {
   qIdx: 0,
 
   r2Scores: { poir: 3, sca: null, cm: 3 },
+  humanScoreOverrides: {},
+  humanNotes: {},
+  roundRecommendations: {},
 
   followUpRounds: [],
   evidenceOwner: "hm",

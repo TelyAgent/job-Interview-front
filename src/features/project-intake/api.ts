@@ -16,6 +16,7 @@ export type Round = {
   id: string; sequence: number; name: string; format: string; duration: number;
   competencies: string; questions: number; mandatory: number; notes: string;
   status: 'Planned' | 'completed'; version: number; createdAt: string;
+  scheduledAt: string | null; timezone: string | null;
   interviewer: { id: string; name: string; title: string | null } | null;
 };
 
@@ -43,6 +44,32 @@ export type Task = {
   materials: { kind: string; material: Material }[];
   parseJobs: ParseJob[];
   rounds: Round[];
+};
+
+// Requirements & Rubric (see job-Interview-front/docs/prod-plan/HireOS_Interview_Capability_Verification_Card_Implementation_Plan_v1.0.md).
+export type ResponsibilityType = 'lead' | 'collaborate' | 'support';
+export type CardPriority = 'P0' | 'P1' | 'P2';
+export type LevelAnchors = { l1: string; l2: string; l3: string; l4: string; l5: string };
+export type CapabilityCard = {
+  id: string; requirement: string; responsibilityType: ResponsibilityType; cardPriority: CardPriority;
+  competencyTags: string; expectedEvidence: string; levelAnchors: LevelAnchors; weight: number;
+  sourceRefs: { segmentId: string; quote: string }[];
+};
+export type CardInput = {
+  id?: string; requirement: string; responsibilityType: ResponsibilityType; cardPriority: CardPriority;
+  competencyTags: string[]; expectedEvidence: string; levelAnchors: LevelAnchors; weight: number;
+};
+export type RubricVersion = {
+  id: string; jobId: string; versionNumber: number; status: 'draft' | 'confirmed'; version: number;
+  confirmedBy: string | null; confirmedAt: string | null; createdAt: string; cards: CapabilityCard[];
+};
+// GET /jobs/:id/rubric — `generation` is the in-flight or most recent AI draft job for the
+// current JD version; `rubric` is the latest materialized version (draft or confirmed), or
+// null before anything has been generated yet.
+export type RubricState = {
+  jobId: string; jdVersion: number;
+  generation: { id: string; status: 'queued' | 'parsing' | 'needs_review' | 'failed'; errorCode: string | null } | null;
+  rubric: RubricVersion | null;
 };
 
 export class ApiError extends Error { constructor(public code: string) { super(code); } }

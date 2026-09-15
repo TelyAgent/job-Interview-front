@@ -113,6 +113,12 @@ export interface AppState {
   // round 2 scores
   r2Scores: Record<string, number | null>;
 
+  // review: human score edits (overrides r1Scores/r2Scores per competency id),
+  // free-text rationale notes, and each round's overall interviewer recommendation
+  humanScoreOverrides: Record<string, number | null>;
+  humanNotes: Record<string, string>;
+  roundRecommendations: Partial<Record<"r1" | "r2", string | null>>;
+
   // evidence follow-ups
   followUpRounds: FollowUpRound[];
   evidenceOwner: "hm" | "iv" | "hr";

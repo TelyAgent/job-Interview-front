@@ -48,7 +48,7 @@ export function LivePage() {
         <ZoomHostPanel lang={state.lang} onActive={setActive} round={joinRound} autoJoin={!!joinRound} />
         <LiveQuestionPanel />
       </div>
-      <MeetingRecordPanel lang={state.lang} dirty={dirty} onDirty={setDirty} />
+      <MeetingRecordPanel lang={state.lang} dirty={dirty} onDirty={setDirty} taskId={state.currentTaskId} round={state.roundView === 'r2' ? 2 : 1} />
     </div>
     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
       <button disabled style={{ minHeight: 36, padding: '0 15px', border: '1px solid var(--line)', borderRadius: 9, color: 'var(--ink-3)', background: 'var(--surface-2)', cursor: 'not-allowed' }}>{copy.complete}</button>

@@ -31,21 +31,24 @@ const PROJECT_SCREENS: Screen[] = [
   "package",
 ];
 
-export function screenToPath(screen: Screen): string {
+export function screenToPath(screen: Screen, taskId: string | null): string {
   if (screen === "home") return "/";
   if (screen === "files") return "/files";
-  return "/project/" + screen;
+  // Project-flow screens are meaningless without a real task to show; fall back home
+  // rather than producing a broken /project/undefined/... URL.
+  if (!taskId) return "/";
+  return `/project/${taskId}/${screen}`;
 }
 
-export function pathToScreen(pathname: string): Screen {
+export function pathToRoute(pathname: string): { screen: Screen; taskId: string | null } {
   const path = pathname.replace(/\/+$/, "") || "/";
-  if (path === "/") return "home";
-  if (path === "/files") return "files";
+  if (path === "/") return { screen: "home", taskId: null };
+  if (path === "/files") return { screen: "files", taskId: null };
   const seg = path.split("/").filter(Boolean);
-  if (seg[0] === "project" && seg[1] && PROJECT_SCREENS.includes(seg[1] as Screen)) {
-    return seg[1] as Screen;
+  if (seg[0] === "project" && seg[1] && seg[2] && PROJECT_SCREENS.includes(seg[2] as Screen)) {
+    return { screen: seg[2] as Screen, taskId: seg[1] };
   }
-  return "home";
+  return { screen: "home", taskId: null };
 }
 
 type Action =
@@ -58,6 +61,7 @@ type Action =
   | { type: "SET_TEXT_SIZE"; payload: AppState["textSize"] }
   | { type: "TOAST"; payload: string }
   | { type: "GO"; payload: AppState["screen"] }
+  | { type: "OPEN_TASK"; payload: { taskId: string; screen: AppState["screen"] } }
   | { type: "RESET_PREFS" };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -85,10 +89,23 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, textSize: action.payload };
     case "TOAST":
       return { ...state, toast: action.payload };
-    case "GO":
+    case "GO": {
+      // "home"/"files" are task-agnostic; leaving the project flow clears the task
+      // so a stale id doesn't leak into the next screen change.
+      const clearsTask = action.payload === "home" || action.payload === "files";
       return {
         ...state,
         screen: action.payload,
+        currentTaskId: clearsTask ? null : state.currentTaskId,
+        drawer: null,
+        showAppearance: false,
+      };
+    }
+    case "OPEN_TASK":
+      return {
+        ...state,
+        screen: action.payload.screen,
+        currentTaskId: action.payload.taskId,
         drawer: null,
         showAppearance: false,
       };
@@ -115,6 +132,7 @@ interface StoreValue {
   set: (p: Partial<AppState>) => void;
   say: (msg: string) => void;
   go: (s: AppState["screen"]) => void;
+  openTask: (taskId: string, s?: AppState["screen"]) => void;
   cycleRole: () => void;
   toggleLang: () => void;
   toggleAppearance: () => void;
@@ -132,10 +150,10 @@ interface StoreValue {
 const StoreCtx = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState, (initial) => ({
-    ...initial,
-    screen: pathToScreen(window.location.pathname),
-  }));
+  const [state, dispatch] = useReducer(reducer, initialState, (initial) => {
+    const route = pathToRoute(window.location.pathname);
+    return { ...initial, screen: route.screen, currentTaskId: route.taskId };
+  });
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Persist prefs to localStorage
@@ -218,6 +236,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       set: (p) => dispatch({ type: "SET", payload: p }),
       say,
       go: (s) => dispatch({ type: "GO", payload: s }),
+      openTask: (taskId, s = "overview") => dispatch({ type: "OPEN_TASK", payload: { taskId, screen: s } }),
       cycleRole: () => dispatch({ type: "CYCLE_ROLE" }),
       toggleLang: () => dispatch({ type: "TOGGLE_LANG" }),
       toggleAppearance: () => dispatch({ type: "TOGGLE_APPEARANCE" }),
@@ -254,28 +273,28 @@ export function RouteSync({ children }: { children?: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Track the previous screen so we only push a URL when the screen actually
+  // Track the previous screen/task so we only push a URL when either actually
   // *changed* (not on initial mount), and so deep-link/refresh doesn't get
   // immediately overwritten by the initial "home" state.
-  const prevScreen = useRef<Screen>(state.screen);
+  const prevRoute = useRef<{ screen: Screen; taskId: string | null }>({ screen: state.screen, taskId: state.currentTaskId });
 
-  // 1) state.screen -> URL (only when screen actually changed)
+  // 1) state.screen/currentTaskId -> URL (only when either actually changed)
   useEffect(() => {
-    if (prevScreen.current === state.screen) return;
-    prevScreen.current = state.screen;
-    const target = screenToPath(state.screen);
+    if (prevRoute.current.screen === state.screen && prevRoute.current.taskId === state.currentTaskId) return;
+    prevRoute.current = { screen: state.screen, taskId: state.currentTaskId };
+    const target = screenToPath(state.screen, state.currentTaskId);
     if (location.pathname !== target) {
       navigate(target, { replace: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.screen]);
+  }, [state.screen, state.currentTaskId]);
 
-  // 2) URL -> state.screen (browser back/forward, deep link, refresh)
+  // 2) URL -> state.screen/currentTaskId (browser back/forward, deep link, refresh)
   useEffect(() => {
-    const screenFromUrl = pathToScreen(location.pathname);
-    if (screenFromUrl !== state.screen) {
-      prevScreen.current = screenFromUrl;
-      set({ screen: screenFromUrl });
+    const route = pathToRoute(location.pathname);
+    if (route.screen !== state.screen || route.taskId !== state.currentTaskId) {
+      prevRoute.current = route;
+      set({ screen: route.screen, currentTaskId: route.taskId });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);

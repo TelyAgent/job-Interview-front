@@ -26,7 +26,7 @@ function initialsFromName(name: string) {
 }
 
 export function HomePage() {
-  const { state, t, set, go, role, say } = useStore();
+  const { state, t, set, openTask, role, say } = useStore();
   const it = intakeText(state.lang);
   const [savedJobs, setSavedJobs] = useState<JobSummary[]>([]);
   const [savedTasks, setSavedTasks] = useState<TaskSummary[]>([]);
@@ -88,7 +88,7 @@ export function HomePage() {
         : null,
       created: new Date(task.createdAt).toLocaleDateString(state.lang === "zh" ? "zh-CN" : "en-US"),
       createdAt: task.createdAt,
-      open: () => go("overview"),
+      open: () => openTask(task.id, "overview"),
     };
   });
 

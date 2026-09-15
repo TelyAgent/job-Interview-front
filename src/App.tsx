@@ -27,9 +27,9 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/files" element={<FilesPage />} />
 
-        {/* Project sub-pages all share the ProjectShell chrome */}
+        {/* Project sub-pages all share the ProjectShell chrome and hang off a real task id */}
         <Route
-          path="/project/*"
+          path="/project/:taskId/*"
           element={
             <ProjectShell>
               <Routes>

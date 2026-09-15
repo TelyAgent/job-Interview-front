@@ -15,6 +15,7 @@ export const initialState: AppState = {
   systemDark: false,
 
   screen: "home",
+  currentTaskId: null,
 
   moreOpen: false,
   overviewStatsOpen: true,

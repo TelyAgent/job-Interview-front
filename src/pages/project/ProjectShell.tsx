@@ -1,54 +1,37 @@
 import { useStore } from "../../store/StoreContext";
 import { Pill } from "../../utils/status";
 import { FlowNav } from "../../components/FlowNav";
+import { useTask } from "../../features/project-intake/useTask";
+import { TASK_STATUS_META, type TaskStatus } from "../../data/domain";
 
 export function ProjectShell({ children }: { children: React.ReactNode }) {
-  const { state, t, go, role } = useStore();
+  const { state, t, go } = useStore();
   const isLive = state.screen === "live";
-  const roleTitle2 = state.jdOnlyDraft
+  const zh = state.lang === "zh";
+  const { task } = useTask(state.currentTaskId);
+
+  // Real job/candidate data once the task loads; the old jdOnlyDraft-derived title is
+  // only a placeholder for the brief window before that fetch resolves.
+  const roleTitle2 = task?.job.title || (state.jdOnlyDraft
     ? (state.jdText.split("\n").map((s) => s.trim()).find((s) => s.length > 0) || "New role").slice(0, 60)
-    : "Senior Backend Engineer";
+    : "Senior Backend Engineer");
+  const jobMeta = task ? [task.job.department, task.job.location, task.job.level].filter(Boolean).join(" · ") : "Platform Engineering · Remote — APAC / EU overlap · L5 / Senior";
+  const candName = task?.candidate.name || (zh ? "未关联候选人" : "Candidate not linked");
 
+  // The backend only tracks coarse task status (no automation for the simulated
+  // rubric/plan/live/debrief/decision steps below), so once the local demo flow has
+  // progressed further than that, show the more specific local state instead.
   const evidencePending = state.followUpRounds.some((r) => r.status !== "completed");
-  const statusBadge = state.decRecorded
-    ? "Package published"
+  const localOverride = state.decRecorded
+    ? { label: zh ? "已发布" : "Package published", tone: "ok" as const }
     : evidencePending
-      ? "Evidence requested"
+      ? { label: zh ? "待补充证据" : "Evidence requested", tone: "warn" as const }
       : state.decision
-        ? "Awaiting confirmation"
-        : state.jdOnlyDraft
-          ? !state.rubricExtracted
-            ? "Draft"
-            : !state.rubricConfirmed
-              ? "Requirements ready"
-              : !state.planApproved
-                ? "Planning"
-                : !state.r1Scheduled
-                  ? "Ready to schedule"
-                  : !state.r2Done
-                    ? "Interview in progress"
-                    : "Review pending"
-          : "Awaiting confirmation";
-  const statusTone = state.decRecorded
-    ? "ok"
-    : statusBadge === "Draft" ||
-        statusBadge === "Requirements ready" ||
-        statusBadge === "Planning"
-      ? "unknown"
-      : "warn";
-
-  const candName =
-    state.jdOnlyDraft && !state.candidateLinked
-      ? state.lang === "zh"
-        ? "未关联候选人"
-        : "Candidate not linked"
-      : "Elena Torres";
-  const candMetaSuffix =
-    state.jdOnlyDraft && !state.candidateLinked
-      ? ""
-      : state.lang === "zh"
-        ? " — 8 年后端经验 · 曾任职于 Vantik、Northline Data"
-        : " — 8 yrs backend · ex-Vantik, ex-Northline Data";
+        ? { label: zh ? "待确认" : "Awaiting confirmation", tone: "warn" as const }
+        : null;
+  const taskStatusMeta = task ? TASK_STATUS_META[task.status as TaskStatus] : undefined;
+  const statusBadge = localOverride?.label ?? (taskStatusMeta ? (zh ? taskStatusMeta.zh : taskStatusMeta.en) : (zh ? "草稿" : "Draft"));
+  const statusTone = localOverride?.tone ?? taskStatusMeta?.tone ?? "unknown";
 
   return (
     <div
@@ -87,9 +70,8 @@ export function ProjectShell({ children }: { children: React.ReactNode }) {
               <Pill label={statusBadge} tone={statusTone} />
             </div>
             <div style={{ marginTop: 5, fontSize: 13, color: "var(--ink-2)" }}>
-              Platform Engineering · Remote — APAC / EU overlap · L5 / Senior ·{" "}
+              {jobMeta ? `${jobMeta} · ` : ""}
               <b style={{ color: "var(--ink)" }}>{candName}</b>
-              {candMetaSuffix}
             </div>
           </div>
           <FlowNav />

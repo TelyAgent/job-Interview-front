@@ -7,6 +7,18 @@ export type ParseJob = { id: string; type: string; materialId: string | null; in
 export type RecruitingStatus = 'open' | 'paused' | 'closed' | 'unknown';
 export type CandidateRef = { id: string; name: string; email: string | null };
 
+// GET /interviewers — directory of people who can own/lead a plan round.
+export type Interviewer = { id: string; name: string; title: string | null; email: string | null };
+
+// GET /tasks/:id/rounds — a task's interview plan. Two are created automatically for
+// every task (see backend RoundsService.createDefaultRounds); more can be added.
+export type Round = {
+  id: string; sequence: number; name: string; format: string; duration: number;
+  competencies: string; questions: number; mandatory: number; notes: string;
+  status: 'Planned' | 'completed'; version: number; createdAt: string;
+  interviewer: { id: string; name: string; title: string | null } | null;
+};
+
 // GET /jobs — the JD side. A Job with zero tasks is still a valid JD-only draft.
 export type JobSummary = { id: string; title: string; department: string | null; location: string | null; level: string | null; recruitingStatus: RecruitingStatus; jdVersion: number; createdAt: string };
 export type Job = JobSummary & {
@@ -30,6 +42,7 @@ export type Task = {
   resume: { material: Material } | null;
   materials: { kind: string; material: Material }[];
   parseJobs: ParseJob[];
+  rounds: Round[];
 };
 
 export class ApiError extends Error { constructor(public code: string) { super(code); } }

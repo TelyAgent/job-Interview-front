@@ -55,6 +55,9 @@ export interface AppState {
 
   // routing (page state)
   screen: Screen;
+  // The real InterviewTask id backing the current project-flow pages (Overview, Plan, ...).
+  // Null on "home"/"files"; set whenever a real task is opened from Home.
+  currentTaskId: string | null;
 
   // preferences
   moreOpen: boolean;

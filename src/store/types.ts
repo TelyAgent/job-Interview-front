@@ -64,6 +64,7 @@ export interface AppState {
   // search and home
   searchQuery: string;
   homeFilter: "All projects" | "Needs my confirmation" | "Draft" | "Published";
+  homeViewMode: "tasks" | "cluster";
 
   // modals and panels
   showCreateModal: boolean;

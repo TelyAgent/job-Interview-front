@@ -22,6 +22,7 @@ export const initialState: AppState = {
 
   searchQuery: "",
   homeFilter: "All projects",
+  homeViewMode: "tasks",
 
   showCreateModal: false,
   createTab: "manual",

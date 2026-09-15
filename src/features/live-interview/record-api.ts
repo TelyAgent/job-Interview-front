@@ -1,6 +1,6 @@
 export type RecordNote = { content: string; version: number; updatedAt: string | null };
 export type MeetingRecord = {
-  session: { id: string; projectId: string; round: number; project: { title: string } };
+  session: { id: string; taskId: string; round: number; task: { job: { title: string }; candidate: { name: string } } };
   note: RecordNote;
   transcript: { status: 'unavailable'; code: string };
 };

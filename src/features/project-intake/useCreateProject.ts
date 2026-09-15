@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, ApiError, uploadMaterial, type Material, type MaterialKind, type Project } from './api';
+import { api, ApiError, uploadMaterial, type Job, type Material, type MaterialKind } from './api';
 import { useStore } from '../../store/StoreContext';
 import { errorText, intakeText } from './i18n';
 
@@ -49,12 +49,12 @@ export function useCreateProject() {
     if (!jdText.trim() && !jdFile) { setError('JD_REQUIRED'); return; }
     if (jdUploading || attachments.some((a) => a.uploading || !a.material)) return;
     submitLock.current = true; setSubmitting(true); setError('');
-    const body = JSON.stringify({ jd: { text: jdText.trim(), materialId: jdFile?.id, effectiveSource: jdText.trim() ? 'text' : 'file' }, materials: attachments.map((a) => ({ materialId: a.material!.id, kind: a.kind })) });
+    const body = JSON.stringify({ jd: { text: jdText.trim(), materialId: jdFile?.id, effectiveSource: jdText.trim() ? 'text' : 'file' }, resumes: attachments.filter((a) => a.kind === 'resume').map((a) => ({ materialId: a.material!.id })) });
     if (key.current.input !== body) key.current = { input: body, key: crypto.randomUUID() };
     try {
-      const project = await api<Project>('/projects', { method: 'POST', headers: { 'Idempotency-Key': key.current.key }, body });
+      const job = await api<Job>('/jobs', { method: 'POST', headers: { 'Idempotency-Key': key.current.key }, body });
       set({
-        showCreateModal: false, screen: 'overview', jdText: project.jdText,
+        showCreateModal: false, screen: 'overview', jdText: job.jdText,
         jdOnlyDraft: true, draftCreated: true,
         rubricExtracted: false, rubricConfirmed: false, rubricVersion: 1, rubricEditing: false,
         planApproved: false, planEditing: false, candidateLinked: false,

@@ -3,8 +3,35 @@ export type Material = { id: string; name: string; text: string; readStatus: str
 export type Fact = { value: string; segmentId: string; quote: string; category?: string };
 export type ParseResult = { title: Fact | null; name: Fact | null; email: Fact | null; facts: Fact[]; warnings: string[]; missingFields: string[]; sourceId: string };
 export type ParseJob = { id: string; type: string; materialId: string | null; inputVersion: number; status: string; errorCode: string | null; result: ParseResult | null };
-export type ProjectSummary = { id: string; title: string; candidateName: string | null; reviewed: boolean; createdAt: string; version: number };
-export type Project = ProjectSummary & { candidateEmail: string | null; jdText: string; jdVersion: number; jobs: ParseJob[]; materials: { kind: string; material: Material }[] };
+
+export type RecruitingStatus = 'open' | 'paused' | 'closed' | 'unknown';
+export type CandidateRef = { id: string; name: string; email: string | null };
+
+// GET /jobs — the JD side. A Job with zero tasks is still a valid JD-only draft.
+export type JobSummary = { id: string; title: string; department: string | null; location: string | null; level: string | null; recruitingStatus: RecruitingStatus; jdVersion: number; createdAt: string };
+export type Job = JobSummary & {
+  jdText: string; version: number; reviewed: boolean;
+  materials: { kind: string; material: Material }[];
+  parseJobs: ParseJob[];
+  tasks: { id: string; status: string; matchScore: number | null; matchRecommendation: string | null; createdAt: string; candidate: CandidateRef }[];
+};
+
+// GET /tasks — the flat, candidate-centric side. Each row is a unique (Job, Candidate) pair.
+export type TaskSummary = {
+  id: string; jobId: string; status: string; reviewed: boolean; version: number;
+  matchScore: number | null; matchRecommendation: string | null; createdAt: string;
+  job: { title: string }; candidate: CandidateRef;
+};
+export type Task = {
+  id: string; status: string; reviewed: boolean; version: number;
+  matchScore: number | null; matchRecommendation: string | null; createdAt: string;
+  job: { id: string; title: string; department: string | null; location: string | null; level: string | null; jdText: string; jdVersion: number };
+  candidate: CandidateRef & { phone: string | null };
+  resume: { material: Material } | null;
+  materials: { kind: string; material: Material }[];
+  parseJobs: ParseJob[];
+};
+
 export class ApiError extends Error { constructor(public code: string) { super(code); } }
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;

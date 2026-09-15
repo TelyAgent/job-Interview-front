@@ -1,9 +1,10 @@
 import { useStore } from "../store/StoreContext";
 import { useEffect, useState } from 'react';
-import { api, type ProjectSummary, type ApiError } from '../features/project-intake/api';
+import { api, type ApiError, type JobSummary, type TaskSummary } from '../features/project-intake/api';
 import { errorText, intakeText } from '../features/project-intake/i18n';
 import { Pill } from "../utils/status";
 import { SurfaceCard, Banner, Chip } from "../components/ui/Primitives";
+import { TASK_STATUS_META, taskFilterBucket, type Candidate, type Job, type InterviewTask, type TaskStatus } from "../data/domain";
 import {
   BriefcaseSvg,
   CalendarSvg,
@@ -17,35 +18,117 @@ import {
   TrendSvg,
 } from "../components/ui/Icons";
 
+function initialsFromTitle(title: string) {
+  return title.slice(0, 2).toUpperCase();
+}
+function initialsFromName(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+}
+
 export function HomePage() {
   const { state, t, set, go, role, say } = useStore();
   const it = intakeText(state.lang);
-  const [savedProjects, setSavedProjects] = useState<ProjectSummary[]>([]);
+  const [savedJobs, setSavedJobs] = useState<JobSummary[]>([]);
+  const [savedTasks, setSavedTasks] = useState<TaskSummary[]>([]);
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
+  const [expandedRoles, setExpandedRoles] = useState<Record<string, boolean>>({});
   useEffect(() => {
     let active = true;
     setLoading(true);
-    api<ProjectSummary[]>('/projects').then((rows) => { if (active) { setSavedProjects(rows); setLoadError(''); } }).catch((e: ApiError) => { if (active) setLoadError(e.code); }).finally(() => { if (active) setLoading(false); });
+    Promise.all([api<JobSummary[]>('/jobs'), api<TaskSummary[]>('/tasks')])
+      .then(([jobRows, taskRows]) => { if (active) { setSavedJobs(jobRows); setSavedTasks(taskRows); setLoadError(''); } })
+      .catch((e: ApiError) => { if (active) setLoadError(e.code); })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [reload]);
-  const projects = savedProjects.map((p) => ({
-    role: p.title, sub: p.candidateName || it.notLinked, candidate: p.candidateName || it.notLinked,
-    status: 'Draft', tone: 'unknown' as const, needs: false, wired: true,
-    initials: p.title.slice(0, 2).toUpperCase(), progress: it.notPlanned,
-    created: new Date(p.createdAt).toLocaleDateString(state.lang === 'zh' ? 'zh-CN' : 'en-US'),
-    open: () => go('overview'),
+  // Jobs/Résumés/Tasks handed off from the Resume Screening subsystem, fetched from the
+  // real API (see src/data/domain.ts for the shape). A task is a unique (Job, Candidate)
+  // pair; a JD with no matched résumé yet is a Job with zero tasks, not a task itself.
+  const jobs: Job[] = savedJobs.map((j) => ({
+    id: j.id, title: j.title, department: j.department || "", location: j.location || "", level: j.level || "",
+    recruitingStatus: j.recruitingStatus, createdAt: j.createdAt,
   }));
+  const candidatesById = new Map<string, Candidate>(
+    savedTasks.map((t) => [t.candidate.id, { id: t.candidate.id, name: t.candidate.name, email: t.candidate.email || "" }]),
+  );
+  const tasks: InterviewTask[] = savedTasks.map((t) => ({
+    id: t.id, jobId: t.jobId, candidateId: t.candidate.id,
+    status: t.status as TaskStatus, roundsCompleted: 0, roundsPlanned: 0,
+    screening: { matchScore: t.matchScore ?? 0, recommendation: t.matchRecommendation ?? "match", handedOffAt: t.createdAt } as InterviewTask["screening"],
+    createdAt: t.createdAt,
+  }));
+  const jobsById = new Map(jobs.map((j) => [j.id, j]));
+
+  const taskRows = tasks.map((task) => {
+    const job = jobsById.get(task.jobId);
+    const candidate = candidatesById.get(task.candidateId);
+    const meta = TASK_STATUS_META[task.status];
+    const progress = task.progressNote
+      ? (state.lang === "zh" ? task.progressNote.zh : task.progressNote.en)
+      : task.roundsPlanned > 0
+        ? (state.lang === "zh" ? `${task.roundsCompleted} / ${task.roundsPlanned} 轮已完成` : `${task.roundsCompleted} / ${task.roundsPlanned} rounds completed`)
+        : it.notPlanned;
+    return {
+      id: task.id,
+      jobId: task.jobId,
+      role: job?.title || it.notLinked,
+      candidate: candidate?.name || it.notLinked,
+      candidateLinked: !!candidate,
+      status: task.status,
+      statusLabel: state.lang === "zh" ? meta.zh : meta.en,
+      tone: meta.tone,
+      roleInitials: job ? initialsFromTitle(job.title) : "--",
+      candidateInitials: candidate ? initialsFromName(candidate.name) : (job ? initialsFromTitle(job.title) : "--"),
+      progress,
+      matchScore: task.screening.matchScore,
+      currentRound: task.currentRound
+        ? { label: state.lang === "zh" ? task.currentRound.label.zh : task.currentRound.label.en, interviewer: task.currentRound.interviewer }
+        : null,
+      created: new Date(task.createdAt).toLocaleDateString(state.lang === "zh" ? "zh-CN" : "en-US"),
+      createdAt: task.createdAt,
+      open: () => go("overview"),
+    };
+  });
+
+  const jobIdsWithTasks = new Set(taskRows.map((r) => r.jobId));
+  const draftOnlyJobCount = jobs.filter((j) => !jobIdsWithTasks.has(j.id)).length;
+
   const counts = {
-    "All projects": projects.length,
-    "Needs my confirmation": projects.filter((p) => p.needs).length,
-    Draft: projects.filter((p) =>
-      ["Draft", "Requirements ready", "Planning"].includes(p.status as string),
-    ).length,
-    Published: projects.filter((p) => p.status === "Package published")
-      .length,
+    "All projects": taskRows.length + draftOnlyJobCount,
+    "Needs my confirmation": taskRows.filter((r) => taskFilterBucket(r.status) === "Needs my confirmation").length,
+    Draft: taskRows.filter((r) => taskFilterBucket(r.status) === "Draft").length + draftOnlyJobCount,
+    Published: taskRows.filter((r) => taskFilterBucket(r.status) === "Published").length,
   };
+
+  const searchQuery = state.searchQuery.trim().toLowerCase();
+  const taskMatches = (p: (typeof taskRows)[number]) => {
+    const matchesSearch = !searchQuery || [p.role, p.candidate, p.statusLabel].join(" ").toLowerCase().includes(searchQuery);
+    const bucket = taskFilterBucket(p.status);
+    const matchesFilter = state.homeFilter === "All projects" || state.homeFilter === bucket;
+    return matchesSearch && matchesFilter;
+  };
+  const filteredProjects = taskRows.filter(taskMatches);
+
+  const roleGroups = jobs
+    .map((job) => {
+      const allCandidates = taskRows.filter((r) => r.jobId === job.id);
+      return {
+        jobId: job.id,
+        role: job.title,
+        initials: initialsFromTitle(job.title),
+        created: new Date(job.createdAt).toLocaleDateString(state.lang === "zh" ? "zh-CN" : "en-US"),
+        allCandidates,
+        candidates: allCandidates.filter(taskMatches),
+      };
+    })
+    .filter((g) => {
+      if (g.candidates.length > 0) return true;
+      if (g.allCandidates.length > 0) return false; // has tasks, none matched the current filter/search
+      if (searchQuery && !g.role.toLowerCase().includes(searchQuery)) return false;
+      return state.homeFilter === "All projects" || state.homeFilter === "Draft";
+    });
 
   const myWorkCards = [
     {
@@ -74,10 +157,19 @@ export function HomePage() {
     },
   ];
 
+  // HOME-G02/G03/G07 (PRD Section 8.2.2): distinct role_id-based counts, not project counts.
+  const openRolesCount = jobs.filter((j) => j.recruitingStatus === "open").length;
+  const rolesInInterviewIds = new Set(
+    taskRows
+      .filter((r) => ["interview_in_progress", "evidence_requested", "awaiting_confirmation", "on_hold"].includes(r.status))
+      .map((r) => r.jobId),
+  );
+  const unknownRolesCount = jobs.filter((j) => j.recruitingStatus === "unknown").length;
+
   const overviewCards = [
     { label: t.cardTotalProjects, value: counts["All projects"], sub: t.cardTotalProjectsSub, icon: <GridSvg /> },
-    { label: t.cardRolesRecruiting, value: 0, sub: t.cardRolesRecruitingSub, icon: <BriefcaseSvg /> },
-    { label: t.cardRolesInInterview, value: 0, sub: t.cardRolesInInterviewSub, icon: <TrendSvg /> },
+    { label: t.cardRolesRecruiting, value: openRolesCount, sub: t.cardRolesRecruitingSub, icon: <BriefcaseSvg /> },
+    { label: t.cardRolesInInterview, value: rolesInInterviewIds.size, sub: t.cardRolesInInterviewSub, icon: <TrendSvg /> },
   ];
 
   const moreCards = [
@@ -86,14 +178,17 @@ export function HomePage() {
     { label: t.cardActiveProjects, value: 0, sub: t.cardActiveProjectsSub, icon: <BoltIcon /> },
     { label: t.cardAwaitingJoint, value: 0, sub: t.cardAwaitingJointSub, icon: <CheckCircleSvg /> },
     { label: t.cardAwaitingScheduling, value: 0, sub: t.cardAwaitingSchedulingSub, icon: <CalendarSvg /> },
-    { label: t.cardUnknownRoles, value: savedProjects.length, sub: t.cardUnknownRolesSub, icon: <HelpIcon /> },
+    { label: t.cardUnknownRoles, value: unknownRolesCount, sub: t.cardUnknownRolesSub, icon: <HelpIcon /> },
     { label: t.cardInterviewsCompleted, value: 0, sub: t.cardLast30, icon: <ChartSvg /> },
     { label: t.cardPackagesCompleted, value: 0, sub: t.cardLast30, icon: <BoxIcon /> },
     { label: t.cardProjectsOnHold, value: 0, sub: t.cardOnHoldStatus, icon: <PauseSvg /> },
   ];
 
   const filters = ["All projects", "Needs my confirmation", "Draft", "Published"] as const;
-  const activity = savedProjects.map((p) => ({ text: p.title, meta: new Date(p.createdAt).toLocaleString(state.lang === 'zh' ? 'zh-CN' : 'en-US') }));
+  const activity = savedTasks.map((t) => ({
+    text: `${t.job.title} · ${t.candidate.name}`,
+    meta: new Date(t.createdAt).toLocaleString(state.lang === 'zh' ? 'zh-CN' : 'en-US'),
+  }));
 
   const statsGrid = {
     marginTop: 11,
@@ -354,129 +449,285 @@ export function HomePage() {
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {filters.map((f) => {
-          const active = state.homeFilter === f;
-          return (
-            <Chip
-              key={f}
-              label={`${state.lang === 'zh' ? ({ 'All projects': '全部项目', 'Needs my confirmation': '待我确认', Draft: '草稿', Published: '已发布' })[f] : f} (${counts[f]})`}
-              active={active}
-              onClick={() => set({ homeFilter: f })}
-            />
-          );
-        })}
-      </div>
-
       <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "start" }}>
-        <div
-          role="table"
-          aria-label={t.interviewProjects}
-          style={{
-            flex: "2 1 480px",
-            minWidth: 0,
-            border: "1px solid var(--line)",
-            borderRadius: 14,
-            background: "var(--surface)",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              padding: "11px 18px",
-              borderBottom: "1px solid var(--line)",
-              display: "grid",
-              gridTemplateColumns: "2fr 1.1fr 1fr 1fr 0.9fr",
-              gap: 10,
-              fontFamily: "'IBM Plex Mono', monospace",
-              fontSize: 10.5,
-              letterSpacing: ".05em",
-              color: "var(--ink-3)",
-            }}
-          >
-            <div>{t.colRole}</div>
-            <div>{t.colStatus}</div>
-            <div>{t.colCandidate}</div>
-            <div>{t.colProgress}</div>
-            <div>{t.colCreated}</div>
-          </div>
-          {loading && <div role="status" style={{ padding: 18 }}>{it.loading}</div>}
-          {loadError && <div role="alert" style={{ padding: 18 }}>{errorText(loadError, state.lang)} <button onClick={() => setReload((n) => n + 1)}>{it.retry}</button></div>}
-          {!loading && !loadError && !projects.length && <div style={{ padding: 18 }}>{it.empty}</div>}
-          {projects
-            .filter((p) => {
-              const q = state.searchQuery.trim().toLowerCase();
-              const matchesSearch =
-                !q ||
-                [p.role, p.sub, p.candidate, p.status].join(" ").toLowerCase().includes(q);
-              const matchesFilter =
-                state.homeFilter === "All projects" ||
-                (state.homeFilter === "Draft" &&
-                  ["Draft", "Requirements ready", "Planning"].includes(p.status as string)) ||
-                (state.homeFilter === "Published" && p.status === "Package published") ||
-                (state.homeFilter === "Needs my confirmation" && p.needs);
-              return matchesSearch && matchesFilter;
-            })
-            .map((p, i) => (
-              <button
-                key={i}
-                onClick={() => {
-                  if (p.open) p.open();
-                  else if (p.wired) go("overview");
-                  else
-                    say(
-                      state.lang === "zh"
-                        ? "此行不可用。"
-                        : "This row is unavailable.",
-                    );
-                }}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "2fr 1.1fr 1fr 1fr 0.9fr",
-                  gap: 10,
-                  width: "100%",
-                  padding: "14px 18px",
-                  border: 0,
-                  borderBottom: "1px solid var(--line)",
-                  background: "transparent",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  alignItems: "center",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
-                  <div
+        <div style={{ flex: "2 1 480px", minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {filters.map((f) => {
+                const active = state.homeFilter === f;
+                return (
+                  <Chip
+                    key={f}
+                    label={`${state.lang === 'zh' ? ({ 'All projects': '全部项目', 'Needs my confirmation': '待我确认', Draft: '草稿', Published: '已发布' })[f] : f} (${counts[f]})`}
+                    active={active}
+                    onClick={() => set({ homeFilter: f })}
+                  />
+                );
+              })}
+            </div>
+            <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden", background: "var(--surface-2)" }}>
+              {([
+                { mode: "tasks" as const, label: t.taskListMode, minWidth: 94 },
+                { mode: "cluster" as const, label: t.clusterByRoleMode, minWidth: 118 },
+              ]).map((tb) => {
+                const active = state.homeViewMode === tb.mode || (tb.mode === "tasks" && state.homeViewMode !== "cluster");
+                return (
+                  <button
+                    key={tb.mode}
+                    onClick={() => set({ homeViewMode: tb.mode })}
                     style={{
-                      flex: "none",
-                      width: 34,
-                      height: 34,
-                      borderRadius: 9,
-                      background: "var(--surface-3)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      height: 30,
+                      minWidth: tb.minWidth,
+                      padding: "0 12px",
+                      border: 0,
+                      background: active ? "var(--brand-soft)" : "transparent",
+                      color: active ? "var(--brand)" : "var(--ink-3)",
                       fontSize: 11.5,
-                      fontWeight: 700,
-                      color: "var(--ink-2)",
+                      fontWeight: active ? 700 : 650,
+                      cursor: "pointer",
                     }}
                   >
-                    {p.initials}
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--ink)" }}>
-                      {p.role}
+                    {tb.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div
+            role="table"
+            aria-label={t.interviewProjects}
+            style={{
+              border: "1px solid var(--line)",
+              borderRadius: 14,
+              background: "var(--surface)",
+              overflow: "hidden",
+            }}
+          >
+            {loading && <div role="status" style={{ padding: "10px 16px", borderBottom: "1px solid var(--line)", fontSize: 12, color: "var(--ink-3)" }}>{it.loading}</div>}
+            {!loading && loadError && (
+              <div role="alert" style={{ padding: "10px 16px", borderBottom: "1px solid var(--line)", fontSize: 12, color: "var(--ink-3)" }}>
+                {state.lang === "zh" ? "无法加载面试项目数据：" : "Could not load interview projects: "}
+                {errorText(loadError, state.lang)}{" "}
+                <button onClick={() => setReload((n) => n + 1)} style={{ color: "var(--brand)", background: "none", border: 0, cursor: "pointer", padding: 0 }}>{it.retry}</button>
+              </div>
+            )}
+            {!jobs.length && <div style={{ padding: 18 }}>{it.empty}</div>}
+
+            {jobs.length > 0 && state.homeViewMode !== "cluster" && (
+              <>
+                <div
+                  style={{
+                    padding: "4px 16px 8px",
+                    borderBottom: "1px solid var(--line)",
+                    display: "grid",
+                    gridTemplateColumns: "1.75fr 1.15fr 1.15fr .82fr .74fr",
+                    gap: 18,
+                    fontFamily: "'IBM Plex Mono', monospace",
+                    fontSize: 10,
+                    letterSpacing: ".08em",
+                    color: "var(--ink-3)",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  <div>{t.colCandidateAndJd}</div>
+                  <div>{t.colStatus}</div>
+                  <div>{t.colProgress}</div>
+                  <div>{t.colCreated}</div>
+                  <div>{t.viewResume}</div>
+                </div>
+                {filteredProjects.length === 0 && <div style={{ padding: "14px 18px", color: "var(--ink-3)", fontSize: 12 }}>{it.noMatches}</div>}
+                {filteredProjects.map((p) => (
+                  <div
+                    key={p.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => p.open()}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); p.open(); } }}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1.75fr 1.15fr 1.15fr .82fr .74fr",
+                      gap: 18,
+                      width: "100%",
+                      padding: "14px 16px",
+                      borderBottom: "1px solid var(--line)",
+                      alignItems: "center",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
+                      <div
+                        style={{
+                          flex: "none",
+                          width: 34,
+                          height: 34,
+                          borderRadius: 9,
+                          background: "rgba(20,184,166,.18)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 11.5,
+                          fontWeight: 800,
+                          color: "var(--brand)",
+                        }}
+                      >
+                        {p.candidateInitials}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {p.candidate}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: "var(--ink-3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {p.role}{p.candidateLinked ? ` · ${state.lang === "zh" ? "匹配度" : "Match"} ${p.matchScore}%` : ""}
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{p.sub}</div>
+                    <div>
+                      <Pill label={p.statusLabel} tone={p.tone} />
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--ink-2)" }}>{p.progress}</div>
+                    <div style={{ fontSize: 12.5, color: "var(--ink-3)", whiteSpace: "nowrap" }}>{p.created}</div>
+                    <div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          say(
+                            p.candidateLinked
+                              ? (state.lang === "zh" ? "简历预览功能即将上线。" : "Résumé preview is coming soon.")
+                              : (state.lang === "zh" ? "请先关联候选人简历。" : "Link a candidate résumé first."),
+                          );
+                        }}
+                        disabled={!p.candidateLinked}
+                        style={{
+                          height: 30,
+                          width: "100%",
+                          padding: "0 8px",
+                          border: "1px solid var(--line)",
+                          borderRadius: 8,
+                          background: "var(--surface)",
+                          color: p.candidateLinked ? "var(--brand)" : "var(--ink-3)",
+                          fontSize: 11.5,
+                          cursor: p.candidateLinked ? "pointer" : "not-allowed",
+                        }}
+                      >
+                        {t.viewResume}
+                      </button>
+                    </div>
                   </div>
+                ))}
+              </>
+            )}
+
+            {jobs.length > 0 && state.homeViewMode === "cluster" && (
+              <>
+                <div
+                  style={{
+                    padding: "11px 18px",
+                    borderBottom: "1px solid var(--line)",
+                    display: "grid",
+                    gridTemplateColumns: "2fr 1.4fr 0.9fr",
+                    gap: 10,
+                    fontFamily: "'IBM Plex Mono', monospace",
+                    fontSize: 10.5,
+                    letterSpacing: ".05em",
+                    color: "var(--ink-3)",
+                  }}
+                >
+                  <div>{t.colRole}</div>
+                  <div>{t.colCandidate}</div>
+                  <div>{t.colCreated}</div>
                 </div>
-                <div>
-                  <Pill label={state.lang === 'zh' ? it.draft : p.status} tone={p.tone} />
-                </div>
-                <div style={{ fontSize: 13, color: "var(--ink)" }}>{p.candidate}</div>
-                <div style={{ fontSize: 13, color: "var(--ink-2)" }}>{p.progress}</div>
-                <div style={{ fontSize: 12.5, color: "var(--ink-3)" }}>{p.created}</div>
-              </button>
-            ))}
+                {roleGroups.length === 0 && <div style={{ padding: "14px 18px", color: "var(--ink-3)", fontSize: 12 }}>{it.noMatches}</div>}
+                {roleGroups.map((g) => {
+                  const expanded = !!expandedRoles[g.jobId];
+                  const linked = g.candidates;
+                  return (
+                    <div key={g.jobId} style={{ borderBottom: "1px solid var(--line)" }}>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "2fr 1.4fr 0.9fr",
+                          gap: 10,
+                          width: "100%",
+                          padding: "13px 18px",
+                          alignItems: "center",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+                          <button
+                            onClick={() => setExpandedRoles((prev) => ({ ...prev, [g.jobId]: !prev[g.jobId] }))}
+                            aria-label={expanded ? (state.lang === "zh" ? "收起" : "Collapse") : (state.lang === "zh" ? "展开" : "Expand")}
+                            style={{ width: 24, height: 24, flex: "0 0 24px", border: 0, background: "transparent", color: "var(--ink-2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                          >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: `rotate(${expanded ? 90 : 0}deg)`, transition: "transform .16s ease" }}>
+                              <path d="m9 18 6-6-6-6"></path>
+                            </svg>
+                          </button>
+                          <div style={{ flex: "none", width: 34, height: 34, borderRadius: 9, background: "var(--surface-3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 700, color: "var(--ink-2)" }}>
+                            {g.initials}
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--ink)" }}>{g.role}</div>
+                            <div style={{ fontSize: 12, color: "var(--ink-3)" }}>JD · {g.created}</div>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 13, color: "var(--ink-2)" }}>
+                          {linked.length}{state.lang === "zh" ? " 位候选人" : linked.length === 1 ? " candidate" : " candidates"}
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                          <button
+                            onClick={() => say(state.lang === "zh" ? "该功能即将上线：为此岗位关联更多候选人。" : "Coming soon: link more candidates to this role.")}
+                            style={{ height: 30, padding: "0 10px", border: "1px solid var(--brand)", borderRadius: 8, background: "var(--brand-soft)", color: "var(--brand)", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}
+                          >
+                            {t.linkCandidate}
+                          </button>
+                        </div>
+                      </div>
+                      {expanded && (
+                        <div style={{ padding: "0 18px 13px 62px", background: "var(--surface-2)" }}>
+                          {linked.length === 0 && <div style={{ padding: "12px 0", fontSize: 12, color: "var(--ink-3)" }}>{t.noCandidatesForJd}</div>}
+                          {linked.length > 0 && (
+                            <>
+                              <div style={{ display: "grid", gridTemplateColumns: "1.25fr 1fr .7fr 1fr .9fr", gap: 10, padding: "10px 0 4px", color: "var(--ink-3)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 9.5, letterSpacing: ".04em" }}>
+                                <div>{t.colCandidate}</div>
+                                <div>{t.colStatus}</div>
+                                <div>{t.colProgress}</div>
+                                <div>{state.lang === "zh" ? "面试轮次 / 面试官" : "ROUND / INTERVIEWER"}</div>
+                                <div>{t.viewResume}</div>
+                              </div>
+                              {linked.map((c) => (
+                                <div key={c.id} style={{ display: "grid", gridTemplateColumns: "1.25fr 1fr .7fr 1fr .9fr", gap: 10, alignItems: "center", padding: "10px 0", borderTop: "1px solid var(--line)" }}>
+                                  <div>
+                                    <button onClick={() => c.open()} style={{ border: 0, background: "transparent", padding: 0, textAlign: "left", cursor: "pointer", color: "var(--brand)", fontSize: 12.5, fontWeight: 650 }}>
+                                      {c.candidate}
+                                    </button>
+                                    <div style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{state.lang === "zh" ? "匹配度" : "Match"} {c.matchScore}%</div>
+                                  </div>
+                                  <div><Pill label={c.statusLabel} tone={c.tone} /></div>
+                                  <div style={{ fontSize: 11.5, color: "var(--ink-2)" }}>{c.progress}</div>
+                                  <div style={{ fontSize: 11.5, color: "var(--ink-2)" }}>
+                                    {c.currentRound ? c.currentRound.label : (state.lang === "zh" ? "未安排" : "Not scheduled")}
+                                    {c.currentRound && <div style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{c.currentRound.interviewer}</div>}
+                                  </div>
+                                  <button
+                                    onClick={() => say(state.lang === "zh" ? "简历预览功能即将上线。" : "Résumé preview is coming soon.")}
+                                    style={{ height: 28, padding: "0 8px", border: "1px solid var(--line)", borderRadius: 7, background: "var(--surface)", color: "var(--brand)", fontSize: 10.5, cursor: "pointer" }}
+                                  >
+                                    {t.viewResume}
+                                  </button>
+                                </div>
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
         </div>
 
         <div

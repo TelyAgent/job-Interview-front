@@ -3,7 +3,7 @@ import { liveCopy } from './i18n';
 import './zoom-meeting.css';
 
 type Status = 'idle' | 'loading' | 'joining' | 'joined' | 'reconnecting' | 'left' | 'error';
-type JoinConfig = { meetingNumber: string; password: string; displayName: string; signature: string; expiresAt: number; zak?: string; joinUrl?: string };
+type JoinConfig = { meetingNumber: string; password: string; displayName: string; signature: string; expiresAt: number; joinUrl?: string };
 
 export function ZoomMeetingPanel({ lang, onActive, host = false, onInvitation, roundId, topic, autoJoin = false }: { lang: 'zh' | 'en'; onActive: (active: boolean) => void; host?: boolean; onInvitation?: (url: string) => void; roundId?: string; topic?: string; autoJoin?: boolean }) {
   const t = liveCopy[lang];
@@ -114,10 +114,7 @@ export function ZoomMeetingPanel({ lang, onActive, host = false, onInvitation, r
   return <div className="zoom-panel">
     <div className="zoom-status" role="status">
       <span>{t[status]}</span><span>{Math.floor(elapsed / 60).toString().padStart(2, '0')}:{(elapsed % 60).toString().padStart(2, '0')}</span>
-      <button onClick={active ? leave : join}>{active ? t.leave : status === 'error' ? t.retry : host ? (lang === 'zh' ? '创建 / 进入主持会议' : 'Create / host meeting') : t.join}</button>
-      {host && status === 'joined' && <button onClick={() => {
-        if (window.confirm(lang === 'zh' ? '结束所有人的会议？' : 'End the meeting for everyone?')) frame.current?.contentWindow?.postMessage({ channel: 'hireos-zoom', type: 'end' }, window.location.origin);
-      }}>{lang === 'zh' ? '结束所有人的会议' : 'End for everyone'}</button>}
+      <button onClick={active ? leave : join}>{active ? t.leave : status === 'error' ? t.retry : host ? (lang === 'zh' ? '创建 / 加入会议' : 'Create / join meeting') : t.join}</button>
     </div>
     <div className="zoom-stage">
       {mounted && diagnostic && <div role="alert">{diagnostic}</div>}

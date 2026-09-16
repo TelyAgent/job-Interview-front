@@ -33,10 +33,6 @@
   window.addEventListener('message', async event => {
     if (event.origin !== origin || event.source !== parent || event.data?.channel !== 'hireos-zoom') return;
     if (event.data.type === 'leave') { close(); return; }
-    if (event.data.type === 'end' && client && !disposed) {
-      try { await client.endMeeting(); } catch (error) { failure(error, 'action-error'); }
-      return;
-    }
     if (event.data.type !== 'join' || busy || disposed) return;
     busy = true;
     secrets = Object.values(event.data.config || {}).filter(value => typeof value === 'string');
@@ -79,9 +75,9 @@
       client.on('connection-change', connectionChanged);
       resize = new ResizeObserver(() => { if (!disposed) client.updateVideoOptions(videoOptions()); });
       resize.observe(document.documentElement);
-      const { meetingNumber, password, displayName, signature, zak } = event.data.config;
+      const { meetingNumber, password, displayName, signature } = event.data.config;
       stage = 'join';
-      await client.join({ meetingNumber, password, userName: displayName, signature, ...(zak ? { zak } : {}) });
+      await client.join({ meetingNumber, password, userName: displayName, signature });
     } catch (error) {
       if (!disposed) failure(error);
       close();

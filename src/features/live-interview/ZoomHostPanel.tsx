@@ -56,6 +56,6 @@ export function ZoomHostPanel({ lang, onActive, round = null, autoJoin = false }
     {error && <div role="alert" style={{ fontSize: 12, color: 'var(--bad)', paddingBottom: 10 }}>{error}{error === 'ZOOM_PUBLIC_CLIENT_ID_REQUIRED' && (zh ? '：请配置后端 Public Client ID' : ': configure the backend Public Client ID')}</div>}
     {connection?.connected
       ? <ZoomMeetingPanel lang={lang} onActive={activity} host onInvitation={setInvite} roundId={round?.roundId} topic={round?.topic} autoJoin={autoJoin} />
-      : <div className="zoom-panel zoom-stage zoom-placeholder"><strong>Zoom</strong><p>{zh ? '连接账户后，可在此创建会议并以主持人身份进入。' : 'Connect your account to create and host a meeting here.'}</p></div>}
+      : <div className="zoom-panel zoom-stage zoom-placeholder"><strong>Zoom</strong><p>{zh ? '连接账户后，可在此创建会议并加入。' : 'Connect your account to create a meeting and join it here.'}</p></div>}
   </div>;
 }

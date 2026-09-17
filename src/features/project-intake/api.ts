@@ -88,6 +88,14 @@ export type RoundScoresState = {
   generation: { id: string; status: 'queued' | 'parsing' | 'needs_review' | 'failed'; errorCode: string | null } | null;
   entries: CardScoreEntry[];
 };
+// GET /tasks/:id/decision — the human's final call plus the AI-drafted conclusion that
+// "Continue to decision" generates (see backend TasksService.generateDecisionDraft).
+export type Decision = 'continue_next_round' | 'hold' | 'request_more_evidence' | 'do_not_proceed' | 'recommend_offer';
+export type DecisionState = {
+  decision: Decision | null; decisionAt: string | null;
+  conclusion: string | null; suggestedDecision: Decision | null;
+  generation: { id: string; status: 'queued' | 'parsing' | 'needs_review' | 'failed'; errorCode: string | null } | null;
+};
 // GET /tasks/:id/debrief — aggregate roll-up across the task's rounds, taking each card's
 // most recently updated score (see backend TasksService.debrief).
 export type DebriefSummary = {

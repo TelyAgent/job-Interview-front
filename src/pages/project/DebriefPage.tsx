@@ -8,6 +8,25 @@ export function DebriefPage() {
   const zh = state.lang === "zh";
   const [summary, setSummary] = useState<DebriefSummary | null>(null);
   const [error, setError] = useState("");
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState("");
+
+  // The decision draft is written from the finished scorecard, so it's generated at the
+  // moment the reviewer moves on to Decision — not earlier, when scores could still change.
+  const continueToDecision = async () => {
+    if (!state.currentTaskId) return;
+    setStarting(true); setStartError("");
+    try {
+      await api(`/tasks/${state.currentTaskId}/decision-draft`, { method: "POST" });
+      set({ screen: "decision" });
+    } catch (e) {
+      const code = e instanceof Error ? e.message : "REQUEST_FAILED";
+      setStartError(code === "ROUNDS_NOT_COMPLETED" ? (zh ? "还有轮次未完成，无法生成决定。" : "Some rounds aren't completed yet.")
+        : code === "NO_SCORES" ? (zh ? "还没有任何人工评分，无法生成决定。" : "No human scores yet.")
+        : code === "NO_CONFIRMED_RUBRIC" ? (zh ? "该职位尚无已确认的评分标准。" : "No confirmed rubric for this role.")
+        : code);
+    } finally { setStarting(false); }
+  };
 
   useEffect(() => {
     if (!state.currentTaskId) { setSummary(null); return; }
@@ -72,7 +91,8 @@ export function DebriefPage() {
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 16px", border: "1px solid var(--line)", borderRadius: 14, background: "var(--surface-2)", flexWrap: "wrap" }}>
         <div style={{ flex: 1 }} />
         <button onClick={() => set({ screen: "review" })} style={{ height: 34, padding: "0 12px", border: "1px solid transparent", borderRadius: 11, background: "transparent", color: "var(--ink-2)", fontSize: 12.5, cursor: "pointer" }}>{t.backToReview}</button>
-        <button onClick={() => set({ screen: "decision" })} style={{ height: 34, padding: "0 15px", border: "1px solid var(--brand)", borderRadius: 11, background: "var(--brand)", color: "var(--brand-ink)", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>{t.continueToDecision}</button>
+        {startError && <span role="alert" style={{ fontSize: 11.5, color: "var(--bad)" }}>{startError}</span>}
+        <button disabled={starting} onClick={() => void continueToDecision()} style={{ height: 34, padding: "0 15px", border: "1px solid var(--brand)", borderRadius: 11, background: "var(--brand)", color: "var(--brand-ink)", fontSize: 12.5, fontWeight: 600, cursor: starting ? "not-allowed" : "pointer", opacity: starting ? 0.6 : 1 }}>{starting ? (zh ? "正在准备决定…" : "Preparing decision…") : t.continueToDecision}</button>
       </div>
     </>
   );

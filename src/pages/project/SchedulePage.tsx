@@ -205,7 +205,11 @@ export function SchedulePage() {
                   <div className="text-[12.5px]">{ownerName}</div>
                 </div>
                 <div>
-                  {r.meetingLink && isZoomLink(r.meetingLink) ? (
+                  {r.status === "completed" ? (
+                    <div className="inline-flex h-[22px] items-center rounded-md bg-[var(--surface-3)] px-2 text-[11.5px] text-[var(--ink-3)]" title={zh ? "面试已完成，会议已结束" : "Interview completed; the meeting has ended"}>
+                      📹 {zh ? "会议已结束" : "Meeting ended"}
+                    </div>
+                  ) : r.meetingLink && isZoomLink(r.meetingLink) ? (
                     <button
                       onClick={() => set({ liveJoinRound: { roundId: r.id, topic: `HireOS Interview — ${r.name}` }, screen: "live" })}
                       className="inline-flex h-[22px] cursor-pointer items-center rounded-md border-0 bg-[var(--brand-soft)] px-2 text-[11.5px] text-[var(--brand)] underline"
@@ -231,7 +235,7 @@ export function SchedulePage() {
                   <Pill label={statusLabel} tone={r.status === "completed" ? "ok" : isScheduled ? "warn" : "unknown"} />
                   <button
                     onClick={() => {
-                      if (r.status === "completed") { set({ screen: "review" }); return; }
+                      if (r.status === "completed") { set({ roundView: r.sequence === 2 ? "r2" : "r1", screen: "live" }); return; }
                       if (!state.planApproved) { say(zh ? "请先确定面试计划，再进行排期。" : "Approve the interview plan before scheduling."); return; }
                       openSchedule(r);
                     }}

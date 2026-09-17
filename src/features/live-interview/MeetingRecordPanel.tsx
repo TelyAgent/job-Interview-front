@@ -1,27 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../../store/StoreContext';
+import { api } from '../project-intake/api';
 import { liveCopy } from './i18n';
 import { recordApi, type MeetingRecord } from './record-api';
 import { useMeetingNotes } from './useMeetingNotes';
 import './meeting-record.css';
 
-// Sample transcript and AI-suggestion content, carried over verbatim from the design
-// prototype (HireOS-Interview-Developer-Handoff-v1.0/prototype/index.html). Zoom RTMS and
-// live AI analysis are not connected yet, so this mirrors the same "disabled sample" pattern
-// already used for the current-question panel: show the design's real content, disabled and
-// labeled as a sample, instead of inventing a different empty-state design.
-const TRANSCRIPT_SAMPLE = [
-  { time: '00:03:41', speaker: 'David Kim', text: "Let's start with system design. Walk me through a distributed system you designed end-to-end — what were the hardest trade-offs?" },
-  { time: '00:04:12', speaker: 'Elena Torres', text: 'Sure — the one I’d point to is the order-routing service. It started single-region, and we redesigned it to active-active across two regions. The hardest trade-off was consistency versus latency on inventory holds during checkout.' },
-  { time: '00:05:20', speaker: 'Elena Torres', text: 'We accepted eventual consistency on non-critical inventory counts but kept strict consistency on the actual hold-and-charge path, using a regional leader election for that slice only.' },
-  { time: '00:06:48', speaker: 'David Kim', text: 'How did you validate that was the right line to draw?' },
-  { time: '00:07:02', speaker: 'Elena Torres', text: 'We instrumented both paths and watched P99 during a real regional failover drill. The strict path added about 40ms but we never saw a double-charge.' },
-  { time: '00:11:20', speaker: 'David Kim', text: "Let's change gears — how would you evolve our checkout service to handle a 10x traffic spike during flash sales?" },
-  { time: '00:11:47', speaker: 'Elena Torres', text: 'First I’d put a queue-based shock absorber in front of checkout and scale consumers from queue depth. The first hard limit is the database connection pool, so I’d protect that with admission control before adding instances.' },
-  { time: '00:12:32', speaker: 'Elena Torres', text: 'I’d tune the pool against observed saturation and leave headroom for failover. I don’t have a useful order-of-magnitude estimate without the current query latency and database limits.' },
-  { time: '00:18:05', speaker: 'Elena Torres', text: 'In production we saw goroutines climb without CPU moving. I compared pprof snapshots and found a fan-out call whose child requests did not inherit context cancellation.' },
-];
+// Sample AI-suggestion content, carried over verbatim from the design prototype
+// (HireOS-Interview-Developer-Handoff-v1.0/prototype/index.html). Live AI analysis isn't
+// connected yet, so this mirrors the same "disabled sample" pattern already used for the
+// current-question panel: show the design's real content, disabled and labeled as a sample,
+// instead of inventing a different empty-state design. The Transcript tab has a real backend
+// (Zoom RTMS, see rounds/:id/transcript) so it renders actual status and lines instead.
 const AI_SUGGESTIONS: Record<'zh' | 'en', string[]> = {
   zh: ['你提到了连接池——当时是如何确定连接池大小的？', '如果今天重新做一次，你会有哪些不同的处理？'],
   en: ['You mentioned the connection pool — how did you arrive at the pool size you chose?', 'What would you do differently if you had to redo this today?'],
@@ -53,10 +44,35 @@ function SessionNotes({ id, lang, onDirty, locked, tab }: { id: string; lang: 'z
   </>;
 }
 
+type Transcript = { status: string; error: string | null; lines: { speaker: string; text: string; createdAt: string }[] };
+
+// Polls the round's live transcript (Zoom RTMS) while the tab is open. Not open-ended: stops
+// as soon as `active` goes false (tab switched away) or `roundId` is missing.
+function useTranscript(roundId: string | null, active: boolean) {
+  const [data, setData] = useState<Transcript | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!roundId || !active) { setData(null); return; }
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const value = await api<Transcript>(`/rounds/${roundId}/transcript`);
+        if (!stopped) { setData(value); setFailed(false); }
+      } catch { if (!stopped) setFailed(true); }
+      if (!stopped) timer = setTimeout(poll, 3000);
+    };
+    void poll();
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [roundId, active]);
+  return { data, failed };
+}
+
 // Round is the 1-based session number, derived by the caller from the round it's
 // currently showing (see LivePage) — this panel is always about "the task and round
 // this Live Interview page is already open for," never a separate thing to pick.
-export function MeetingRecordPanel({ lang, onDirty, dirty, taskId, round }: { lang: 'zh' | 'en'; onDirty: (dirty: boolean) => void; dirty: boolean; taskId: string | null; round: number }) {
+// `roundId` is that same round's real InterviewRound.id, used to fetch its live transcript.
+export function MeetingRecordPanel({ lang, onDirty, dirty, taskId, round, roundId }: { lang: 'zh' | 'en'; onDirty: (dirty: boolean) => void; dirty: boolean; taskId: string | null; round: number; roundId: string | null }) {
   const { say } = useStore();
   const zh = lang === 'zh'; const copy = liveCopy[lang];
   const [params, setParams] = useSearchParams();
@@ -80,6 +96,7 @@ export function MeetingRecordPanel({ lang, onDirty, dirty, taskId, round }: { la
   useEffect(() => { if (taskId) void open();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId, round]);
+  const transcript = useTranscript(roundId, tab === 'transcript');
   return <div className="live-side-panel meeting-record">
     <div className="record-tabs" role="tablist">
       {(['notes', 'transcript', 'ai'] as const).map(key => <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}>{copy[key]}</button>)}
@@ -88,16 +105,22 @@ export function MeetingRecordPanel({ lang, onDirty, dirty, taskId, round }: { la
       {!taskId && <p>{zh ? '未关联真实面试任务。' : 'No real task linked.'}</p>}
       {error && <div role="alert" className="record-error">{error} <button onClick={() => void open()}>{zh ? '重试' : 'Retry'}</button></div>}
       {id ? <SessionNotes key={id} id={id} lang={lang} onDirty={onDirty} locked={busy} tab={tab} /> : taskId && busy && tab === 'notes' && <p>{zh ? '正在打开记录…' : 'Opening record…'}</p>}
-      {tab === 'transcript' && <>
-        <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{copy.transcriptSampleNote}</div>
-        <fieldset disabled style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-          <div style={{ marginTop: 9, padding: '11px 13px', borderRadius: 10, background: 'var(--ai-soft)', color: 'var(--ai)', fontSize: 11.5, lineHeight: 1.5 }}>{copy.simulatedTranscriptNote}</div>
-          {TRANSCRIPT_SAMPLE.map((line, i) => <div className="transcript-row" key={i}>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: 'var(--ink-3)' }}>{line.time}</div>
-            <div><b>{line.speaker}:</b> {line.text}</div>
-          </div>)}
-        </fieldset>
-      </>}
+      {tab === 'transcript' && (!roundId
+        ? <p>{zh ? '未关联真实轮次，无法获取转写。' : 'No real round linked; transcript is unavailable.'}</p>
+        : !transcript.data
+          ? (transcript.failed
+            ? <div role="alert" className="record-error">{zh ? '转写状态加载失败。' : 'Could not load transcript status.'}</div>
+            : <p>{zh ? '加载中…' : 'Loading…'}</p>)
+          : <>
+            {transcript.data.status === 'idle' && <div className="record-empty">{zh ? '尚未开始：需要真实的 Zoom 会议触发 RTMS 才会产生实时转写。' : "Not started yet — a real Zoom meeting must trigger RTMS before a live transcript appears."}</div>}
+            {transcript.data.status === 'connecting' && <div className="record-empty">{zh ? '正在连接实时转写…' : 'Connecting to the live transcript…'}</div>}
+            {transcript.data.status === 'error' && <div role="alert" className="record-error">{transcript.data.error || (zh ? '转写连接出错。' : 'Transcript connection failed.')}</div>}
+            {transcript.data.lines.map((line, i) => <div className="transcript-row" key={i}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: 'var(--ink-3)' }}>{new Date(line.createdAt).toLocaleTimeString(zh ? 'zh-CN' : 'en-US', { hour12: false })}</div>
+              <div><b>{line.speaker}:</b> {line.text}</div>
+            </div>)}
+            {transcript.data.status === 'live' && transcript.data.lines.length === 0 && <div className="record-empty">{zh ? '已连接，等待第一句转写…' : 'Connected — waiting for the first line…'}</div>}
+          </>)}
       {tab === 'ai' && <>
         <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{copy.aiSampleNote}</div>
         <fieldset disabled style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>

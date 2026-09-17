@@ -11,3 +11,4 @@
 .meeting-record .transcript-row { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 8px; margin-top: 12px; font-size: 12px; line-height: 1.55; }
 .meeting-record .ai-suggestion-card { width: 100%; padding: 14px 16px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-2); color: var(--ink); font-size: 12px; line-height: 1.5; text-align: left; cursor: pointer; }
 .meeting-record .ai-suggestion-card:hover { border-color: var(--brand); }
+.meeting-record .record-empty { margin-top: 9px; padding: 11px; border: 1px dashed var(--line-strong); border-radius: 10px; font-size: 12px; color: var(--ink-3); }

@@ -17,6 +17,8 @@ export type Round = {
   competencies: string; questions: number; mandatory: number; notes: string;
   status: 'Planned' | 'completed'; version: number; createdAt: string;
   scheduledAt: string | null; timezone: string | null; meetingLink: string | null;
+  transcriptStatus: string; transcriptError: string | null;
+  completedAt: string | null; recommendation: Recommendation | null;
   interviewer: { id: string; name: string; title: string | null } | null;
 };
 
@@ -71,6 +73,30 @@ export type RubricState = {
   jobId: string; jdVersion: number;
   generation: { id: string; status: 'queued' | 'parsing' | 'needs_review' | 'failed'; errorCode: string | null } | null;
   rubric: RubricVersion | null;
+};
+
+// Review: a round's human score against one of the job's confirmed capability cards.
+// Every round can score every card independently — see backend CardScore.
+export type Recommendation = 'strong_advance' | 'advance' | 'hold' | 'do_not_advance' | 'request_info';
+export type CardScoreEntry = {
+  card: CapabilityCard; score: number | null; note: string;
+  aiScore: number | null; aiRationale: string | null; aiQuote: string | null;
+};
+// GET /rounds/:id/scores — `generation` is the in-flight or most recent `round_scores` AI
+// job for this round (null before "Generate AI scores" is ever clicked).
+export type RoundScoresState = {
+  generation: { id: string; status: 'queued' | 'parsing' | 'needs_review' | 'failed'; errorCode: string | null } | null;
+  entries: CardScoreEntry[];
+};
+// GET /tasks/:id/debrief — aggregate roll-up across the task's rounds, taking each card's
+// most recently updated score (see backend TasksService.debrief).
+export type DebriefSummary = {
+  totalCards: number; scoredCount: number;
+  mustHaveTotal: number; mustHaveMet: number;
+  evaluatedWeightPct: number;
+  overall: 'pass' | 'fail' | null;
+  unknownCards: { id: string; requirement: string }[];
+  cards: { id: string; requirement: string; cardPriority: CardPriority; weight: number; score: number | null }[];
 };
 
 // GET/POST /jobs/:id/brief-questions — one STAR (Situation/Task/Action/Result) follow-up

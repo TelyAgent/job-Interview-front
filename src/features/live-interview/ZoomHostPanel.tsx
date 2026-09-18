@@ -19,12 +19,42 @@ export function ZoomHostPanel({ lang, onActive, round = null, autoJoin = false }
       try {
         const response = await fetch('/api/meetings/host/status', { signal: controller.signal });
         const body = await response.json(); if (!response.ok) throw new Error(body.code || 'ZOOM_STATUS_FAILED');
-        if (!controller.signal.aborted) { setConnection(body); setInvite(body.meeting?.joinUrl || ''); if (body.error) setError(body.error); }
+        if (!controller.signal.aborted) {
+          setConnection(body);
+          if (!round?.roundId) setInvite(body.meeting?.joinUrl || '');
+          if (body.error) setError(body.error);
+        }
       } catch (error) { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : 'ZOOM_STATUS_FAILED'); }
       if (!controller.signal.aborted) timer = setTimeout(poll, 2500);
     };
     void poll(); return () => { controller.abort(); clearTimeout(timer); };
-  }, [reload]);
+  }, [reload, round?.roundId]);
+
+  // The status endpoint's `meeting` field is the account's default meeting. A
+  // scheduled round has its own meeting, so never expose the default link from
+  // this panel when the user is working inside a specific round.
+  useEffect(() => {
+    if (!connection?.connected || !round?.roundId) return;
+    const controller = new AbortController();
+    void fetch('/api/meetings/host/link', {
+      method: 'POST',
+      headers: { 'x-hireos-zoom': '1', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roundId: round.roundId, topic: round.topic }),
+      signal: controller.signal,
+    })
+      .then(async response => {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.code || 'ZOOM_LINK_FAILED');
+        if (!controller.signal.aborted && body.joinUrl) {
+          setInvite(body.joinUrl);
+          setCopied(false);
+        }
+      })
+      .catch(error => {
+        if (!controller.signal.aborted) setError(error instanceof Error ? error.message : 'ZOOM_LINK_FAILED');
+      });
+    return () => controller.abort();
+  }, [connection?.connected, round?.roundId, round?.topic]);
   const connect = async () => {
     if (busy) return;
     const popup = window.open('about:blank', '_blank');

@@ -51,6 +51,70 @@ export function SchedulePage() {
   const [draftTz, setDraftTz] = useState("UTC+8");
   const [draftLink, setDraftLink] = useState("");
   const [saving, setSaving] = useState(false);
+  type ZoomConnection = { connected: boolean; name: string | null; pending: boolean; error: string | null };
+  const [zoomConnection, setZoomConnection] = useState<ZoomConnection | null>(null);
+  const [zoomAuthBusy, setZoomAuthBusy] = useState(false);
+
+  const loadZoomStatus = async () => {
+    try {
+      const response = await fetch("/api/meetings/host/status", { cache: "no-store" });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.code || "ZOOM_STATUS_FAILED");
+      setZoomConnection(body);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "ZOOM_STATUS_FAILED";
+      setZoomConnection({ connected: false, name: null, pending: false, error: code });
+    }
+  };
+
+  useEffect(() => {
+    void loadZoomStatus();
+  }, []);
+
+  const authorizeZoom = async () => {
+    if (zoomAuthBusy) return false;
+    const popup = window.open("about:blank", "_blank");
+    if (!popup) {
+      say(errorText("POPUP_BLOCKED", state.lang));
+      return false;
+    }
+    popup.opener = null;
+    setZoomAuthBusy(true);
+    setZoomConnection((current) => current ? { ...current, pending: true, error: null } : { connected: false, name: null, pending: true, error: null });
+    try {
+      const authRes = await fetch("/api/meetings/host/authorize", { method: "POST", headers: { "x-hireos-zoom": "1" } });
+      const authBody = await authRes.json().catch(() => ({}));
+      if (!authRes.ok) throw new Error(authBody.code || "ZOOM_AUTH_FAILED");
+      const url = new URL(authBody.authorizationUrl);
+      if (url.origin !== "https://zoom.us") throw new Error("ZOOM_AUTH_FAILED");
+      popup.location.href = url.href;
+
+      let connected = false;
+      for (let i = 0; i < 60 && !connected; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+        const statusRes = await fetch("/api/meetings/host/status", { cache: "no-store" });
+        const status = await statusRes.json().catch(() => ({}));
+        if (status.connected && !status.pending) {
+          connected = true;
+          setZoomConnection(status);
+        } else if (status.error) {
+          throw new Error(status.error);
+        }
+      }
+      if (!connected) throw new Error("ZOOM_AUTH_EXPIRED");
+      say(zh ? "Zoom 主持人账号已授权。" : "The Zoom host account is authorized.");
+      return true;
+    } catch (error) {
+      popup.close();
+      const code = error instanceof Error ? error.message : "ZOOM_AUTH_FAILED";
+      setZoomConnection((current) => current ? { ...current, pending: false, error: code } : { connected: false, name: null, pending: false, error: code });
+      say(errorText(code, state.lang));
+      return false;
+    } finally {
+      setZoomAuthBusy(false);
+      void loadZoomStatus();
+    }
+  };
 
   const openSchedule = (r: Round) => {
     setOpenRoundId(r.id);
@@ -74,25 +138,9 @@ export function SchedulePage() {
       const status = await statusRes.json().catch(() => ({}));
       if (!statusRes.ok) throw new Error(status.code || "ZOOM_STATUS_FAILED");
       if (!status.connected) {
-        const popup = window.open("about:blank", "_blank");
-        if (!popup) throw new Error("POPUP_BLOCKED");
-        popup.opener = null;
         setZoomPhase("connecting");
-        const authRes = await fetch("/api/meetings/host/authorize", { method: "POST", headers: { "x-hireos-zoom": "1" } });
-        const authBody = await authRes.json().catch(() => ({}));
-        if (!authRes.ok) { popup.close(); throw new Error(authBody.code || "ZOOM_AUTH_FAILED"); }
-        const url = new URL(authBody.authorizationUrl);
-        if (url.origin !== "https://zoom.us") { popup.close(); throw new Error("ZOOM_AUTH_FAILED"); }
-        popup.location.href = url.href;
-        let connected = false;
-        for (let i = 0; i < 60 && !connected; i++) {
-          await new Promise((resolve) => setTimeout(resolve, 2500));
-          const poll = await fetch("/api/meetings/host/status");
-          const body = await poll.json().catch(() => ({}));
-          if (body.connected) connected = true;
-          else if (body.error) throw new Error(body.error);
-        }
-        if (!connected) throw new Error("ZOOM_AUTH_EXPIRED");
+        const authorized = await authorizeZoom();
+        if (!authorized) throw new Error("ZOOM_AUTH_FAILED");
       }
       setZoomPhase("generating");
       const linkRes = await fetch("/api/meetings/host/link", {
@@ -164,6 +212,35 @@ export function SchedulePage() {
       <div className="flex items-center gap-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-[15px] py-3">
         <span>🌐</span>
         <div className="text-[12.5px]">{t.timezoneNote}</div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2.5 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
+        <div className="flex min-w-[220px] flex-1 items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${zoomConnection?.connected ? "bg-[var(--ok)]" : "bg-[var(--ink-3)]"}`} />
+          <div>
+            <div className="text-[12.5px] font-semibold">{zh ? "Zoom 主持人账号" : "Zoom host account"}</div>
+            <div className="text-[11.5px] text-[var(--ink-3)]">
+              {zoomConnection?.connected
+                ? `${zh ? "已连接：" : "Connected: "}${zoomConnection.name || (zh ? "已授权账号" : "Authorized account")}`
+                : zoomConnection?.pending
+                  ? (zh ? "等待授权完成…" : "Waiting for authorization…")
+                  : (zh ? "尚未授权" : "Not authorized")}
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          disabled={zoomAuthBusy}
+          onClick={() => void authorizeZoom()}
+          className="h-8 cursor-pointer rounded-[9px] border border-[var(--line-strong)] bg-[var(--surface-2)] px-3 text-[12px] font-semibold text-[var(--ink-2)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {zoomAuthBusy ? (zh ? "授权中…" : "Authorizing…") : zoomConnection?.connected ? (zh ? "重新授权" : "Reauthorize") : (zh ? "授权 Zoom" : "Authorize Zoom")}
+        </button>
+        {zoomConnection?.error && (
+          <div role="alert" className="basis-full text-[11.5px] text-[var(--bad)]">
+            {errorText(zoomConnection.error, state.lang)}
+          </div>
+        )}
       </div>
 
       {loading && <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-[17px] py-[15px] text-xs text-[var(--ink-3)]">{zh ? "加载中…" : "Loading…"}</div>}

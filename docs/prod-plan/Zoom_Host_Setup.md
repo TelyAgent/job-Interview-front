@@ -11,8 +11,8 @@
 ## Zoom 应用设置
 
 - General App 开启 Meeting SDK、Public Client OAuth。
-- Redirect URL 与 Allow List 均为 `http://127.0.0.1/api/integrations/zoom/callback`，Strict Mode 开启。
-- 每次授权在 `127.0.0.1` 绑定随机端口；回调包含端口，Zoom 对符合条件的 PKCE loopback 重定向忽略端口差异。
+- Redirect URL 与 Allow List 均为 `http://127.0.0.1:50590/api/integrations/zoom/callback`，Strict Mode 开启。
+- 本地授权使用固定 loopback 端口 `50590`；如端口被占用，修改后端 `ZOOM_OAUTH_CALLBACK_PORT`，并同步修改 Zoom Marketplace 中的 Redirect URL 与 OAuth Allow List。
 - Scopes：`user:read:user`、`user:read:zak`、`meeting:write:meeting`。
 - SDK Client ID/Secret 与 OAuth Public Client ID 分别配置，必须从后台对应字段核对；勿把 SDK Secret 当 OAuth verifier。
 

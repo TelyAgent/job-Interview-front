@@ -3,7 +3,7 @@ import { liveCopy } from './i18n';
 import './zoom-meeting.css';
 
 type Status = 'idle' | 'loading' | 'joining' | 'joined' | 'reconnecting' | 'left' | 'error';
-type JoinConfig = { meetingNumber: string; password: string; displayName: string; signature: string; expiresAt: number; joinUrl?: string };
+type JoinConfig = { meetingNumber: string; password: string; displayName: string; signature: string; expiresAt: number; zak?: string; joinUrl?: string };
 
 export function ZoomMeetingPanel({ lang, onActive, host = false, onInvitation, roundId, topic, autoJoin = false }: { lang: 'zh' | 'en'; onActive: (active: boolean) => void; host?: boolean; onInvitation?: (url: string) => void; roundId?: string; topic?: string; autoJoin?: boolean }) {
   const t = liveCopy[lang];

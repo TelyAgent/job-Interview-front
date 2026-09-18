@@ -49,6 +49,7 @@ const errors: Record<string, [string, string]> = {
   AI_TIMEOUT: ['AI request timed out. Please retry.', 'AI 请求超时，请重试。'],
   AI_RATE_LIMITED: ['AI rate limit reached. Please retry later.', 'AI 请求受到限流，请稍后重试。'],
   AI_REQUEST_FAILED: ['AI request failed. Please check the provider configuration.', 'AI 请求失败，请检查模型配置。'],
+  AI_AUTH_FAILED: ['AI provider rejected the credentials (401/403). Check the API key on the server.', 'AI 服务商拒绝了鉴权（401/403），请检查服务器上的 API Key。'],
   AI_OUTPUT_INVALID: ['AI returned invalid data. Please retry or review manually.', 'AI 返回数据无效，请重试或手动核对。'],
   AI_SOURCE_INVALID: ['AI citations could not be verified. Please retry.', 'AI 来源引用无法验证，请重试。'],
   VERSION_CONFLICT: ['The project has changed. Reload before saving.', '项目已更新，请刷新后再保存。'],

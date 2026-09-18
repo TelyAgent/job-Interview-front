@@ -107,6 +107,26 @@ export type DebriefSummary = {
   cards: { id: string; requirement: string; cardPriority: CardPriority; weight: number; score: number | null }[];
 };
 
+// GET /tasks/:id/package — the Evaluation Package: decision + debrief roll-up + evidence
+// derived from real card scores + HR/Hiring Manager sign-off + Offer handoff state (see
+// backend TasksService.package). No manual evidence curation exists — `evidence` is computed
+// from CardScore, not a separately-authored list.
+export type PackageEvidenceItem = {
+  cardId: string; requirement: string; cardPriority: CardPriority; weight: number;
+  roundName: string | null; score: number | null; note: string;
+  aiScore: number | null; aiRationale: string | null;
+  tag: 'strong' | 'medium' | 'weak' | 'unknown';
+};
+export type PackageState = {
+  candidateName: string; jobTitle: string;
+  decision: Decision | null; decisionAt: string | null; conclusion: string | null;
+  debrief: DebriefSummary;
+  evidence: PackageEvidenceItem[];
+  hrConfirmedAt: string | null; hmConfirmedAt: string | null;
+  published: boolean;
+  offerState: 'none' | 'sent'; offerSentAt: string | null;
+};
+
 // GET/POST /jobs/:id/brief-questions — one STAR (Situation/Task/Action/Result) follow-up
 // set per confirmed capability card, generated once per rubric version. No candidate
 // resume matching exists yet, so every card in the job's latest confirmed rubric shows up

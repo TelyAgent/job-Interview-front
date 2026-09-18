@@ -1,6 +1,8 @@
 import { useStore } from "../store/StoreContext";
+import { flowGateReason } from "../utils/flowGate";
+import type { Task } from "../features/project-intake/api";
 
-export function FlowNav() {
+export function FlowNav({ task }: { task: Task | null }) {
   const { state, go, set, say, t } = useStore();
   const flowIds = ["overview", "rubric", "plan", "schedule", "brief", "live", "review", "debrief", "decision", "package"] as const;
   const flowLabels: Record<string, string> = {
@@ -74,27 +76,8 @@ export function FlowNav() {
                 );
                 return;
               }
-              if (
-                state.jdOnlyDraft &&
-                ["review", "debrief", "decision"].includes(id) &&
-                !state.r1Done &&
-                !state.r2Done
-              ) {
-                say(
-                  state.lang === "zh"
-                    ? "请先完成至少一轮面试，再评审证据。"
-                    : "Complete at least one interview round before reviewing evidence.",
-                );
-                return;
-              }
-              if (state.jdOnlyDraft && id === "package" && !state.decRecorded) {
-                say(
-                  state.lang === "zh"
-                    ? "请先完成决定并取得双方确认，再发布评估包。"
-                    : "Complete the decision and both confirmations before publishing the package.",
-                );
-                return;
-              }
+              const blocked = flowGateReason(task, id, state.lang === "zh");
+              if (blocked) { say(blocked); return; }
               go(id as any);
             }}
             style={{

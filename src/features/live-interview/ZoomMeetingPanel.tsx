@@ -17,6 +17,7 @@ export function ZoomMeetingPanel({ lang, onActive, host = false, onInvitation, r
   const [mounted, setMounted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const started = useRef<number | null>(null);
+  const rtmsStartedForRound = useRef<string | null>(null);
   const active = status === 'loading' || status === 'joining' || status === 'joined' || status === 'reconnecting';
 
   useEffect(() => { onActive(active); return () => onActive(false); }, [active, onActive]);
@@ -42,7 +43,24 @@ export function ZoomMeetingPanel({ lang, onActive, host = false, onInvitation, r
         frame.current?.contentWindow?.postMessage({ channel: 'hireos-zoom', type: 'join', config: config.current, language: lang === 'zh' ? 'zh-CN' : 'en-US' }, window.location.origin);
         config.current = null;
       }
-      if (event.data.type === 'connected') { started.current ??= Date.now(); setStatus('joined'); }
+      if (event.data.type === 'connected') {
+        started.current ??= Date.now();
+        setStatus('joined');
+        if (host && roundId && rtmsStartedForRound.current !== roundId) {
+          rtmsStartedForRound.current = roundId;
+          void fetch('/api/meetings/host/rtms/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-hireos-zoom': '1' },
+            body: JSON.stringify({ roundId }),
+          }).then(async response => {
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(body.code || 'RTMS_START_FAILED');
+          }).catch(error => {
+            rtmsStartedForRound.current = null;
+            setDiagnostic(error instanceof Error ? error.message : 'RTMS_START_FAILED');
+          });
+        }
+      }
       if (event.data.type === 'reconnecting') setStatus('reconnecting');
       if (event.data.type === 'action-error') {
         const detail = event.data.detail;

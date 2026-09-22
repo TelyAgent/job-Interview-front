@@ -1,27 +1,18 @@
 import { useStore } from "../store/StoreContext";
-import { CloseSvg, ArrowRightSvg, FileSvg, MailSvg, FolderSvg } from "./ui/Icons";
+import { CloseSvg, ArrowRightSvg, FileSvg, SearchSvg } from "./ui/Icons";
 import { Modal } from "antd";
-import { useCreateProject } from "../features/project-intake/useCreateProject";
+import { useAttachJob } from "../features/project-intake/useAttachJob";
 import { errorText, intakeText } from "../features/project-intake/i18n";
-import type { MaterialKind } from "../features/project-intake/api";
 
 export function CreateProjectModal() {
-  const { state, set, say, t } = useStore();
-  const form = useCreateProject();
+  const { state, set, t } = useStore();
+  const form = useAttachJob();
   const it = intakeText(state.lang);
   const open = state.showCreateModal;
 
-  const close_ = () => { if (!form.submitting) set({ showCreateModal: false }); };
-
-  const create = form.create;
+  const close_ = () => { if (!form.busy) { set({ showCreateModal: false }); form.back(); } };
 
   if (!open) return null;
-
-  const tabs = [
-    { k: "manual", label: t.uploadManually, icon: <FileSvg /> },
-    { k: "folder", label: t.importFolder, icon: <FolderSvg /> },
-    { k: "email", label: t.importEmail, icon: <MailSvg /> },
-  ] as const;
 
   return (
     <Modal
@@ -49,10 +40,10 @@ export function CreateProjectModal() {
             {t.newInterviewProject}
           </div>
           <div style={{ marginTop: 6, fontSize: 22, fontWeight: 700 }}>
-            {t.startWithJd}
+            {t.pickJobTitle}
           </div>
           <div style={{ marginTop: 6, fontSize: 13, color: "var(--ink-2)" }}>
-            {t.jdSubtitle}
+            {t.pickJobSubtitle}
           </div>
         </div>
         <button
@@ -75,145 +66,107 @@ export function CreateProjectModal() {
         </button>
       </div>
 
-      <div
-        style={{
-          marginTop: 20,
-          display: "grid",
-          gridTemplateColumns: "repeat(3,1fr)",
-          gap: 10,
-        }}
-      >
-        {tabs.map((tb) => {
-          const active = (state.createTab || "manual") === tb.k;
-          return (
-            <button
-              key={tb.k}
-              onClick={() => set({ createTab: tb.k })}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 8,
-                padding: "16px 10px",
-                border: `1px solid ${active ? "var(--brand)" : "var(--line)"}`,
-                borderRadius: 12,
-                background: active ? "var(--brand-soft)" : "var(--surface)",
-                color: active ? "var(--brand)" : "var(--ink)",
-                cursor: "pointer",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {tb.icon}
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{tb.label}</div>
-            </button>
-          );
-        })}
-      </div>
-
-      {state.createTab === "manual" && (
-        <div style={{ marginTop: 18 }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>{t.jobDescription}</div>
+      {!form.job && (
+        <div style={{ marginTop: 20 }}>
           <div
             style={{
-              marginTop: 3,
-              fontSize: 11,
-              fontWeight: 700,
-              color: "var(--bad)",
-              letterSpacing: ".02em",
-            }}
-          >
-            {t.required}
-          </div>
-          <textarea
-            aria-label={t.jobDescription}
-            value={form.jdText}
-            disabled={form.submitting}
-            onChange={(e) => form.updateText(e.target.value)}
-            placeholder={t.jdPlaceholder}
-            style={{
-              marginTop: 8,
-              width: "100%",
-              height: 150,
-              border: "1px solid var(--line-strong)",
-              borderRadius: 11,
-              padding: "12px 14px",
-              fontSize: 13,
-              color: "var(--ink)",
-              background: "var(--surface)",
-              lineHeight: 1.55,
-              resize: "none",
-              fontFamily: "inherit",
-            }}
-          />
-          <label
-            htmlFor="jdFileInput"
-            style={{
-              marginTop: 14,
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "14px 16px",
-              border: "1px dashed var(--line-strong)",
-              borderRadius: 12,
-              background: "var(--surface-2)",
-              cursor: "pointer",
-              textAlign: "left",
-              boxSizing: "border-box",
-            }}
-          >
-            <input
-              id="jdFileInput"
-              type="file"
-              disabled={form.submitting || form.jdUploading}
-              accept=".pdf,.docx,.txt"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (!f) return;
-                void form.chooseJd(f);
-                e.target.value = "";
-              }}
-              style={{ display: "none" }}
-            />
-            <FileSvg />
-            <div>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--brand)" }}>
-                {form.jdUploading ? it.uploading : form.jdFile?.name || t.chooseJdFile}
-              </div>
-              <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
-                {t.chooseJdFileSub}
-              </div>
-            </div>
-          </label>
-          {form.jdFile && <div style={{ marginTop: 8, fontSize: 12, color: form.jdFile.errorCode ? 'var(--bad)' : 'var(--ink-3)' }}>
-            {form.jdFile.errorCode ? errorText(form.jdFile.errorCode, state.lang) : it.source}
-          </div>}
-
-          <div
-            style={{
-              marginTop: 16,
               display: "flex",
               alignItems: "center",
               gap: 10,
+              padding: "10px 14px",
+              border: "1px solid var(--line-strong)",
+              borderRadius: 11,
+              background: "var(--surface)",
             }}
           >
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 600 }}>
-                {t.candidateMaterials}
-              </div>
-              <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
-                {t.candidateMaterialsSub}
+            <SearchSvg />
+            <input
+              autoFocus
+              aria-label={t.searchJobsPlaceholder}
+              value={form.query}
+              onChange={(e) => void form.search(e.target.value)}
+              placeholder={t.searchJobsPlaceholder}
+              style={{
+                flex: 1,
+                border: 0,
+                outline: "none",
+                fontSize: 13.5,
+                background: "transparent",
+                color: "var(--ink)",
+              }}
+            />
+          </div>
+
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto" }}>
+            {form.searching && <div style={{ padding: "10px 2px", fontSize: 12.5, color: "var(--ink-3)" }}>{it.loading}</div>}
+            {!form.searching && form.results.length === 0 && (
+              <div style={{ padding: "10px 2px", fontSize: 12.5, color: "var(--ink-3)" }}>{t.noJobsFound}</div>
+            )}
+            {form.results.map((job) => (
+              <button
+                key={job.id}
+                disabled={form.attaching}
+                onClick={() => void form.pick(job.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  padding: "12px 14px",
+                  border: "1px solid var(--line)",
+                  borderRadius: 11,
+                  background: "var(--surface)",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700 }}>{job.title}</div>
+                  <div style={{ marginTop: 2, fontSize: 11.5, color: "var(--ink-3)" }}>
+                    {[job.team, job.location, job.seniority].filter(Boolean).join(" · ") || job.status}
+                  </div>
+                </div>
+                <ArrowRightSvg />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {form.job && (
+        <div style={{ marginTop: 18 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "12px 14px",
+              border: "1px solid var(--line-strong)",
+              borderRadius: 11,
+              background: "var(--surface-2)",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 13.5, fontWeight: 700 }}>{form.job.title}</div>
+              <div style={{ marginTop: 2, fontSize: 11.5, color: "var(--ink-3)" }}>
+                {[form.job.department, form.job.location, form.job.level].filter(Boolean).join(" · ")}
               </div>
             </div>
+            <button
+              onClick={form.back}
+              style={{ border: 0, background: "transparent", color: "var(--brand)", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+            >
+              {t.changeJob}
+            </button>
+          </div>
+
+          <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600 }}>{t.resumesTitle}</div>
+              <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>{t.resumesSub}</div>
+            </div>
             <label
-              htmlFor="materialsFileInput"
+              htmlFor="resumesFileInput"
               style={{
                 flex: "none",
                 display: "flex",
@@ -226,44 +179,28 @@ export function CreateProjectModal() {
               }}
             >
               <input
-                id="materialsFileInput"
+                id="resumesFileInput"
                 type="file"
                 multiple
                 accept=".pdf,.docx,.txt"
-                disabled={form.submitting}
                 onChange={(e) => {
                   const files = Array.from(e.target.files || []);
                   if (!files.length) return;
-                  form.addFiles(files);
+                  form.addResumes(files);
                   e.target.value = "";
                 }}
                 style={{ display: "none" }}
               />
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
                 <path d="M12 5v14M5 12h14"></path>
               </svg>
-              {t.addMaterials}
+              {t.addResumes}
             </label>
           </div>
 
-          {form.attachments.length > 0 && (
-            <div
-              style={{
-                marginTop: 9,
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-              }}
-            >
-              {form.attachments.map((m) => (
+          {form.resumes.length > 0 && (
+            <div style={{ marginTop: 9, display: "flex", flexDirection: "column", gap: 6 }}>
+              {form.resumes.map((m) => (
                 <div
                   key={m.key}
                   style={{
@@ -277,84 +214,25 @@ export function CreateProjectModal() {
                     fontSize: 12,
                   }}
                 >
-                  <span
-                    style={{
-                      flex: 1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
+                  <FileSvg />
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {m.name}
                     <small style={{ display: 'block', whiteSpace: 'normal' }}>
-                      {m.uploading ? it.uploading : m.error || m.material?.errorCode ? errorText(m.error || m.material!.errorCode!, state.lang) : it.available}
+                      {m.uploading ? it.uploading : (m.error || m.material?.errorCode) ? errorText(m.error || m.material!.errorCode!, state.lang) : it.available}
                     </small>
                   </span>
-                  <select aria-label={t.candidateMaterials} value={m.kind} disabled={form.submitting} onChange={(e) => form.setAttachments((rows) => rows.map((r) => r.key === m.key ? { ...r, kind: e.target.value as MaterialKind } : r))}>
-                    {(['resume', 'screening', 'assessment', 'other'] as const).map((kind) => <option key={kind} value={kind}>{it[kind]}</option>)}
-                  </select>
-                  {m.error && <button onClick={() => void form.uploadAttachment(m)}>{it.retry}</button>}
+                  {m.error && <button onClick={() => void form.uploadResume(m)}>{it.retry}</button>}
                   <button
                     aria-label={it.remove}
-                    disabled={form.submitting}
-                    onClick={() =>
-                      form.setAttachments((rows) => rows.filter((x) => x.key !== m.key))
-                    }
-                    style={{
-                      border: 0,
-                      background: "transparent",
-                      color: "var(--ink-3)",
-                      cursor: "pointer",
-                      fontSize: 12,
-                    }}
+                    onClick={() => form.setResumes((rows) => rows.filter((x) => x.key !== m.key))}
+                    style={{ border: 0, background: "transparent", color: "var(--ink-3)", cursor: "pointer", fontSize: 12 }}
                   >
                     ✕
                   </button>
                 </div>
-                ))}
+              ))}
             </div>
           )}
-        </div>
-      )}
-
-      {(state.createTab === "folder" || state.createTab === "email") && (
-        <div
-          style={{
-            marginTop: 18,
-            padding: "34px 20px",
-            border: "1px dashed var(--line-strong)",
-            borderRadius: 14,
-            background: "var(--surface-2)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            textAlign: "center",
-            gap: 6,
-          }}
-        >
-          {state.createTab === "folder" ? <FolderSvg size={30} /> : <MailSvg size={30} />}
-          <div style={{ marginTop: 6, fontSize: 15, fontWeight: 700 }}>
-            {it.notConnected}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--ink-3)" }}>
-            {it.connectLater}
-          </div>
-          <button
-            onClick={() => set({ createTab: 'manual' })}
-            style={{
-              marginTop: 8,
-              height: 34,
-              padding: "0 14px",
-              border: "1px solid var(--line-strong)",
-              borderRadius: 9,
-              background: "var(--surface)",
-              fontSize: 12.5,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            {t.uploadManually}
-          </button>
         </div>
       )}
 
@@ -383,27 +261,29 @@ export function CreateProjectModal() {
         >
           {t.cancel}
         </button>
-        <button
-          onClick={create}
-          disabled={form.busy || state.createTab !== 'manual'}
-          style={{
-            height: 40,
-            padding: "0 18px",
-            border: "1px solid var(--brand)",
-            borderRadius: 10,
-            background: "var(--brand)",
-            color: "var(--brand-ink)",
-            fontSize: 13.5,
-            fontWeight: 700,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          {form.submitting ? it.submitting : t.createProject}
-          <ArrowRightSvg />
-        </button>
+        {form.job && (
+          <button
+            onClick={form.finish}
+            disabled={form.busy}
+            style={{
+              height: 40,
+              padding: "0 18px",
+              border: "1px solid var(--brand)",
+              borderRadius: 10,
+              background: "var(--brand)",
+              color: "var(--brand-ink)",
+              fontSize: 13.5,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            {t.doneButton}
+            <ArrowRightSvg />
+          </button>
+        )}
       </div>
     </Modal>
   );

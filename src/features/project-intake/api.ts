@@ -25,9 +25,7 @@ export type Round = {
 // GET /jobs — the JD side. A Job with zero tasks is still a valid JD-only draft.
 export type JobSummary = { id: string; title: string; department: string | null; location: string | null; level: string | null; recruitingStatus: RecruitingStatus; jdVersion: number; createdAt: string };
 export type Job = JobSummary & {
-  jdText: string; version: number; reviewed: boolean;
-  materials: { kind: string; material: Material }[];
-  parseJobs: ParseJob[];
+  jdText: string;
   tasks: { id: string; status: string; matchScore: number | null; matchRecommendation: string | null; createdAt: string; candidate: CandidateRef }[];
 };
 

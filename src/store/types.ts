@@ -75,7 +75,6 @@ export interface AppState {
 
   // modals and panels
   showCreateModal: boolean;
-  createTab: "manual" | "folder" | "email";
   showEvidenceRequest: boolean;
   drawer: string | null; // "compId:score" | "compId:anchors" | "compId:evidence" | "file:FILENAME"
   sourceAnswer: EvidenceItem | null;

@@ -123,6 +123,24 @@ export function ArrowRightSvg({ size = 15 }: { size?: number }) {
   );
 }
 
+export function SearchSvg({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="11" cy="11" r="7"></circle>
+      <path d="m21 21-4.3-4.3"></path>
+    </svg>
+  );
+}
+
 export function CloseSvg({ size = 18 }: { size?: number }) {
   return (
     <svg

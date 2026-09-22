@@ -27,7 +27,6 @@ export const initialState: AppState = {
   homeViewMode: "tasks",
 
   showCreateModal: false,
-  createTab: "manual",
   showEvidenceRequest: false,
   drawer: null,
   sourceAnswer: null,

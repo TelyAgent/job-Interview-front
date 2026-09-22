@@ -1,7 +1,6 @@
 const en = {
   uploading: 'Uploading and reading…', submitting: 'Creating…', retry: 'Retry', remove: 'Remove',
-  saved: 'Project saved.', source: 'The edited text will be used as the JD. The original file is retained.',
-  notConnected: 'Not connected', connectLater: 'Use manual upload to create a project.',
+  saved: 'Project saved.',
   loading: 'Loading…', empty: 'No projects yet.', noMatches: 'No matching projects.',
   draft: 'Draft', notLinked: 'Candidate not linked', notPlanned: 'Not planned yet',
   intake: 'Project information', title: 'Role title', name: 'Candidate name', email: 'Candidate email',
@@ -18,8 +17,7 @@ const en = {
 };
 const zh: typeof en = {
   uploading: '正在上传并读取…', submitting: '正在创建…', retry: '重试', remove: '移除',
-  saved: '项目已保存。', source: '将以编辑后的文本作为 JD，原文件保留为附件。',
-  notConnected: '尚未连接', connectLater: '请使用手动上传创建项目。',
+  saved: '项目已保存。',
   loading: '加载中…', empty: '暂无项目。', noMatches: '没有匹配的项目。',
   draft: '草稿', notLinked: '未关联候选人', notPlanned: '尚未规划',
   intake: '项目信息', title: '岗位名称', name: '候选人姓名', email: '候选人邮箱',

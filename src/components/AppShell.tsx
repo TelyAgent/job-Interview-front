@@ -121,7 +121,7 @@ export function TopBar() {
         {state.showAppearance && <AppearancePopover />}
       </div>
       <button
-        onClick={() => set({ showCreateModal: true, createTab: "manual" })}
+        onClick={() => set({ showCreateModal: true })}
         style={{
           height: 32,
           padding: "0 12px",

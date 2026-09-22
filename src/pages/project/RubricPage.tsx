@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Drawer } from "antd";
 import { useStore } from "../../store/StoreContext";
 import { Pill, type Tone } from "../../utils/status";
-import { PlusSvg, CloseSvg } from "../../components/ui/Icons";
+import { PlusSvg, CloseSvg, SpinnerSvg } from "../../components/ui/Icons";
 import { useTask } from "../../features/project-intake/useTask";
 import { useRubric } from "../../features/project-intake/useRubric";
 import type { CapabilityCard, CardInput, CardPriority, ResponsibilityType } from "../../features/project-intake/api";
@@ -123,21 +123,24 @@ export function RubricPage() {
     <>
       <div
         className={
-          "rounded-xl border px-3.5 py-2.5 text-[12.5px] " +
+          "flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-[12.5px] " +
           (isConfirmed
             ? "border-[var(--ok)] bg-[var(--ok-soft)] text-[var(--ink)]"
             : "border-[var(--line-strong)] bg-[var(--surface-2)] text-[var(--ink-2)]")
         }
       >
-        {!jobId
-          ? (zh ? "未找到关联的岗位。" : "No linked job found.")
-          : !rubric && !isGenerating
-            ? t.rubricEmptyHint
-            : isGenerating
-              ? t.rubricGenerating
-              : isConfirmed
-                ? `✓ ${t.rubricVersionLabel}${rubric!.versionNumber}${t.rubricConfirmedBy}${t.rubricConfirmedSuffix}`
-                : `${t.rubricVersionLabel}${rubric!.versionNumber}${t.rubricDraftAwaiting}`}
+        {isGenerating && <SpinnerSvg />}
+        <span>
+          {!jobId
+            ? (zh ? "未找到关联的岗位。" : "No linked job found.")
+            : !rubric && !isGenerating
+              ? t.rubricEmptyHint
+              : isGenerating
+                ? t.rubricGenerating
+                : isConfirmed
+                  ? `✓ ${t.rubricVersionLabel}${rubric!.versionNumber}${t.rubricConfirmedBy}${t.rubricConfirmedSuffix}`
+                  : `${t.rubricVersionLabel}${rubric!.versionNumber}${t.rubricDraftAwaiting}`}
+        </span>
       </div>
 
       {generation?.status === "failed" && (

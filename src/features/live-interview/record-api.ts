@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '../../utils/apiBase';
+
 export type RecordNote = { content: string; version: number; updatedAt: string | null };
 export type MeetingRecord = {
   session: { id: string; taskId: string; round: number; task: { job: { title: string }; candidate: { name: string } } };
@@ -6,7 +8,7 @@ export type MeetingRecord = {
 };
 
 export async function recordApi<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(`${API_BASE_URL}api${path}`, {
     ...options, cache: 'no-store', signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000),
     headers: { 'Content-Type': 'application/json', 'x-hireos-record': '1', ...options.headers },
   });

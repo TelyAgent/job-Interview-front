@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ZoomMeetingPanel } from './ZoomMeetingPanel';
+import { API_BASE_URL } from '../../utils/apiBase';
 
 type Connection = { connected: boolean; name: string | null; pending: boolean; error: string | null; meeting?: { joinUrl: string } | null };
 type Round = { roundId: string; topic: string };
@@ -17,7 +18,7 @@ export function ZoomHostPanel({ lang, onActive, round = null, autoJoin = false }
     const controller = new AbortController(); let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
-        const response = await fetch('/api/meetings/host/status', { signal: controller.signal });
+        const response = await fetch(`${API_BASE_URL}api/meetings/host/status`, { signal: controller.signal });
         const body = await response.json(); if (!response.ok) throw new Error(body.code || 'ZOOM_STATUS_FAILED');
         if (!controller.signal.aborted) {
           setConnection(body);
@@ -36,7 +37,7 @@ export function ZoomHostPanel({ lang, onActive, round = null, autoJoin = false }
   useEffect(() => {
     if (!connection?.connected || !round?.roundId) return;
     const controller = new AbortController();
-    void fetch('/api/meetings/host/link', {
+    void fetch(`${API_BASE_URL}api/meetings/host/link`, {
       method: 'POST',
       headers: { 'x-hireos-zoom': '1', 'Content-Type': 'application/json' },
       body: JSON.stringify({ roundId: round.roundId, topic: round.topic }),
@@ -61,7 +62,7 @@ export function ZoomHostPanel({ lang, onActive, round = null, autoJoin = false }
     if (!popup) { setError('POPUP_BLOCKED'); return; }
     popup.opener = null; setBusy(true); setError('');
     try {
-      const response = await fetch('/api/meetings/host/authorize', { method: 'POST', headers: { 'x-hireos-zoom': '1' }, signal: AbortSignal.timeout(15000) });
+      const response = await fetch(`${API_BASE_URL}api/meetings/host/authorize`, { method: 'POST', headers: { 'x-hireos-zoom': '1' }, signal: AbortSignal.timeout(15000) });
       const body = await response.json(); if (!response.ok) throw new Error(body.code || 'ZOOM_AUTH_FAILED');
       const url = new URL(body.authorizationUrl); if (url.origin !== 'https://zoom.us') throw new Error('ZOOM_AUTH_FAILED');
       popup.location.href = url.href; setReload(value => value + 1);
@@ -77,7 +78,7 @@ export function ZoomHostPanel({ lang, onActive, round = null, autoJoin = false }
         if (!window.confirm(zh ? '请先在 Zoom 确认旧会议已结束。此操作只清除当前会议关联，不会结束旧会议。继续？' : 'First verify the old meeting has ended in Zoom. This only clears its local link; it does not end the meeting. Continue?')) return;
         setBusy(true);
         try {
-          const response = await fetch('/api/meetings/host/reset-meeting', { method: 'POST', headers: { 'x-hireos-zoom': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ roundId: round?.roundId }) });
+          const response = await fetch(`${API_BASE_URL}api/meetings/host/reset-meeting`, { method: 'POST', headers: { 'x-hireos-zoom': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ roundId: round?.roundId }) });
           if (!response.ok) throw new Error('ZOOM_RESET_FAILED');
           setInvite(''); setCopied(false); setError(''); setReload(value => value + 1);
         } catch { setError('ZOOM_RESET_FAILED'); } finally { setBusy(false); }

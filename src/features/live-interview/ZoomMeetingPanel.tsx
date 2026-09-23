@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { liveCopy } from './i18n';
+import { API_BASE_URL } from '../../utils/apiBase';
 import './zoom-meeting.css';
 
 type Status = 'idle' | 'loading' | 'joining' | 'joined' | 'reconnecting' | 'left' | 'error';
@@ -48,7 +49,7 @@ export function ZoomMeetingPanel({ lang, onActive, host = false, onInvitation, r
         setStatus('joined');
         if (host && roundId && rtmsStartedForRound.current !== roundId) {
           rtmsStartedForRound.current = roundId;
-          void fetch('/api/meetings/host/rtms/start', {
+          void fetch(`${API_BASE_URL}api/meetings/host/rtms/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-hireos-zoom': '1' },
             body: JSON.stringify({ roundId }),
@@ -96,7 +97,7 @@ export function ZoomMeetingPanel({ lang, onActive, host = false, onInvitation, r
     const timeout = setTimeout(() => controller.abort(), host ? 75000 : 15000);
     try {
       const response = await fetch(
-        host ? '/api/meetings/host/start' : '/api/meetings/dev/join-config',
+        host ? `${API_BASE_URL}api/meetings/host/start` : `${API_BASE_URL}api/meetings/dev/join-config`,
         { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', 'x-hireos-zoom': '1' }, body: host ? JSON.stringify({ roundId, topic }) : undefined },
       );
       const body = await response.json();
@@ -136,7 +137,7 @@ export function ZoomMeetingPanel({ lang, onActive, host = false, onInvitation, r
     </div>
     <div className="zoom-stage">
       {mounted && diagnostic && <div role="alert">{diagnostic}</div>}
-      {mounted && <iframe key={attempt} ref={frame} src="/zoom-meeting/index.html" title="Zoom meeting" allow="camera; microphone; display-capture; fullscreen; autoplay" />}
+      {mounted && <iframe key={attempt} ref={frame} src={`${API_BASE_URL}zoom-meeting/index.html`} title="Zoom meeting" allow="camera; microphone; display-capture; fullscreen; autoplay" />}
       {!mounted && <div className="zoom-placeholder"><strong>Zoom</strong><p>{error ? t[error as keyof typeof t] : t.idle}</p>{diagnostic && <p role="alert">{diagnostic}</p>}</div>}
     </div>
   </div>;

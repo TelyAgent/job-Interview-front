@@ -4,6 +4,7 @@ import { ConfigProvider, App as AntApp } from "antd";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { StoreProvider, RouteSync } from "./store/StoreContext";
+import { API_BASE_URL } from "./utils/apiBase";
 import "./index.css";
 
 class ErrorBoundary extends Component<
@@ -57,7 +58,7 @@ root.render(
     >
       <AntApp>
         <StoreProvider>
-          <BrowserRouter>
+          <BrowserRouter basename={API_BASE_URL}>
             <RouteSync>
               <ErrorBoundary>
                 <App />
